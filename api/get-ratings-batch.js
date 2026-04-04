@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getSupabaseClient } from './_supabase.js'
 
 // Fetches critic scores for a batch of wines in a SINGLE Claude call
 // using training knowledge only (no web search, no per-wine API calls).
@@ -48,24 +49,40 @@ Use null for unknown scores. Return nothing but the JSON array.`,
     const text = response.content[0].text.trim()
     const match = text.match(/\[[\s\S]*\]/)
 
+    // Build the results array (nulls on parse failure — caller treats null as -1)
+    let results
     if (!match) {
-      // Parsing failed — return all nulls so the caller can save -1 and move on
-      return res.status(200).json({
-        results: wines.map((w) => ({ id: w.id, james_suckling: null, robert_parker: null, wine_spectator: null })),
-      })
-    }
-
-    const parsed = JSON.parse(match[0])
-    const resultMap = Object.fromEntries(parsed.map((r) => [r.id, r]))
-
-    return res.status(200).json({
-      results: wines.map((w) => ({
+      results = wines.map((w) => ({ id: w.id, james_suckling: null, robert_parker: null, wine_spectator: null }))
+    } else {
+      const parsed = JSON.parse(match[0])
+      const resultMap = Object.fromEntries(parsed.map((r) => [r.id, r]))
+      results = wines.map((w) => ({
         id:             w.id,
         james_suckling: resultMap[w.id]?.james_suckling ?? null,
         robert_parker:  resultMap[w.id]?.robert_parker  ?? null,
         wine_spectator: resultMap[w.id]?.wine_spectator ?? null,
-      })),
-    })
+      }))
+    }
+
+    // Persist directly to Supabase so results are saved even if the browser
+    // navigates away before the frontend processes the response.
+    try {
+      const supabase = getSupabaseClient()
+      await Promise.all(
+        results.map((r) =>
+          supabase.from('wines').update({
+            james_suckling: r.james_suckling ?? -1,
+            robert_parker:  r.robert_parker  ?? -1,
+            wine_spectator: r.wine_spectator ?? -1,
+          }).eq('id', r.id)
+        )
+      )
+    } catch (saveErr) {
+      // Non-fatal — log and return data anyway so the frontend can update local state
+      console.error('get-ratings-batch: Supabase save failed:', saveErr.message)
+    }
+
+    return res.status(200).json({ results })
   } catch (err) {
     console.error('get-ratings-batch error:', err)
     return res.status(500).json({ error: err.message || 'Failed to fetch batch ratings.' })

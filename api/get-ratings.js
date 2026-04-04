@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getSupabaseClient } from './_supabase.js'
 
 // Step 1: Try Claude's training knowledge first (cheap, fast)
 async function getRatingsFromTraining(client, name, vintage) {
@@ -70,7 +71,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
   }
 
-  const { name, vintage } = req.body ?? {}
+  const { name, vintage, wine_id } = req.body ?? {}
   if (!name?.trim()) {
     return res.status(400).json({ error: 'Missing wine name' })
   }
@@ -86,12 +87,30 @@ export default async function handler(req, res) {
       result = await getRatingsFromWeb(client, name.trim(), vintage ?? null)
     }
 
-    // Return individual fields; null means not found by either method
-    return res.status(200).json({
+    const payload = {
       james_suckling: result?.james_suckling ?? null,
       robert_parker:  result?.robert_parker  ?? null,
       wine_spectator: result?.wine_spectator ?? null,
-    })
+    }
+
+    // Save directly to Supabase so the result is persisted even if the
+    // browser navigates away before the frontend can call updateWine().
+    if (wine_id) {
+      try {
+        const supabase = getSupabaseClient()
+        await supabase.from('wines').update({
+          james_suckling: payload.james_suckling ?? -1,
+          robert_parker:  payload.robert_parker  ?? -1,
+          wine_spectator: payload.wine_spectator ?? -1,
+        }).eq('id', wine_id)
+      } catch (saveErr) {
+        // Non-fatal — log and continue; caller still gets the data
+        console.error('get-ratings: Supabase save failed:', saveErr.message)
+      }
+    }
+
+    // Return individual fields; null means not found by either method
+    return res.status(200).json(payload)
   } catch (err) {
     console.error('get-ratings error:', err)
     return res.status(500).json({ error: err.message || 'Failed to fetch ratings' })

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import ColourBadge, { COLOUR_STYLES } from '../components/ColourBadge'
 import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
-import { getWines, drinkOne, deleteWine, updateWine } from '../lib/wines'
+import { getWines, drinkOne, deleteWine } from '../lib/wines'
 
 const COLOURS = ['all', 'red', 'white', 'rosé', 'sparkling', 'dessert']
 
@@ -104,17 +104,12 @@ export default function Inventory() {
         const data = await res.json()
         const results = data.results ?? []
 
-        // Save each result and update local state wine by wine
+        // Server already saved results to Supabase — just update local React state
         for (const result of results) {
           const update = {
             james_suckling: result.james_suckling ?? -1,
             robert_parker:  result.robert_parker  ?? -1,
             wine_spectator: result.wine_spectator ?? -1,
-          }
-          try {
-            await updateWine(result.id, update)
-          } catch {
-            // skip save failures; continue
           }
           setWines((prev) =>
             prev.map((w) => (w.id === result.id ? { ...w, ...update } : w))
@@ -189,8 +184,8 @@ export default function Inventory() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              {refreshProgress && refreshProgress.done < refreshProgress.total
-                ? `Processing wine ${refreshProgress.done + 1} of ${refreshProgress.total}…`
+              {refreshProgress?.done > 0
+                ? `${refreshProgress.done} / ${refreshProgress.total} done…`
                 : 'Fetching ratings…'}
             </>
           ) : (

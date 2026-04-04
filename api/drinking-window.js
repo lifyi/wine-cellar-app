@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getSupabaseClient } from './_supabase.js'
 
 function buildSystemPrompt() {
   const year = new Date().getFullYear()
@@ -54,7 +55,28 @@ export default async function handler(req, res) {
       return res.status(422).json({ error: 'Could not parse drinking window response.' })
     }
 
-    return res.status(200).json(JSON.parse(match[0]))
+    const parsed = JSON.parse(match[0])
+
+    // Persist directly to Supabase so results are saved even if the browser
+    // navigates away before the frontend processes the response.
+    try {
+      const supabase = getSupabaseClient()
+      await Promise.all(
+        (parsed.wines ?? []).map(({ wine_id, status, note, start_year, end_year }) =>
+          supabase.from('wines').update({
+            drinking_window_status: status,
+            drinking_window_note:   note       ?? null,
+            drinking_window_start:  start_year ?? null,
+            drinking_window_end:    end_year   ?? null,
+          }).eq('id', wine_id)
+        )
+      )
+    } catch (saveErr) {
+      // Non-fatal — log and return data anyway so the frontend can update local state
+      console.error('drinking-window: Supabase save failed:', saveErr.message)
+    }
+
+    return res.status(200).json(parsed)
   } catch (err) {
     console.error('drinking-window error:', err)
     return res.status(500).json({ error: err.message || 'Failed to estimate drinking windows.' })

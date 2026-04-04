@@ -184,26 +184,21 @@ export default function AddWine() {
           navigate('/')
         }
 
+        // Pass wine_id so the server saves to Supabase directly — the result
+        // is persisted even if the user navigates away before this .then() runs.
         fetch('/api/get-ratings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: saved.name, vintage: saved.vintage ?? null }),
+          body: JSON.stringify({ wine_id: saved.id, name: saved.name, vintage: saved.vintage ?? null }),
         })
           .then((r) => r.json())
           .then((data) => {
-            const update = {}
-            if (data.james_suckling != null) update.james_suckling = data.james_suckling
-            if (data.robert_parker  != null) update.robert_parker  = data.robert_parker
-            if (data.wine_spectator != null) update.wine_spectator = data.wine_spectator
-            if (Object.keys(update).length > 0) {
-              updateWine(saved.id, update).catch(() => {})
-              // Build display string for the post-save card
-              const parts = []
-              if ((data.james_suckling ?? 0) > 0) parts.push(`JS ${data.james_suckling}`)
-              if ((data.robert_parker  ?? 0) > 0) parts.push(`RP ${data.robert_parker}`)
-              if ((data.wine_spectator ?? 0) > 0) parts.push(`WS ${data.wine_spectator}`)
-              if (parts.length > 0) setFetchedRatings(parts.join(' · '))
-            }
+            // Server already saved to Supabase — just update the post-save UI
+            const parts = []
+            if ((data.james_suckling ?? 0) > 0) parts.push(`JS ${data.james_suckling}`)
+            if ((data.robert_parker  ?? 0) > 0) parts.push(`RP ${data.robert_parker}`)
+            if ((data.wine_spectator ?? 0) > 0) parts.push(`WS ${data.wine_spectator}`)
+            if (parts.length > 0) setFetchedRatings(parts.join(' · '))
             setFetchingRatings(false)
             setTimeout(goHome, 1500)
           })
