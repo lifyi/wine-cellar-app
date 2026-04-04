@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ColourBadge, { COLOUR_STYLES } from '../components/ColourBadge'
+import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
 import { getWines, drinkOne, deleteWine } from '../lib/wines'
 
 const COLOURS = ['all', 'red', 'white', 'rosé', 'sparkling', 'dessert']
@@ -182,11 +183,15 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
           {wine.cost != null && (
             <span className="text-xs text-neutral-500">${Number(wine.cost).toFixed(2)}</span>
           )}
+          <DrinkingWindowBadge status={wine.drinking_window_status} />
         </div>
         {(wine.region || wine.grape_variety) && (
           <p className="text-xs text-neutral-600 truncate">
             {[wine.grape_variety, wine.region, wine.country].filter(Boolean).join(' · ')}
           </p>
+        )}
+        {wine.drinking_window_note && (
+          <p className="text-xs text-neutral-600 truncate">{wine.drinking_window_note}</p>
         )}
       </div>
 

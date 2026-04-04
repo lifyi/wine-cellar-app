@@ -86,6 +86,15 @@ export async function getDrinkingHistory() {
   return data
 }
 
+// ── Save drinking window status + note for one wine ───────────────────────
+export async function setDrinkingWindow(id, status, note) {
+  const { error } = await supabase
+    .from('wines')
+    .update({ drinking_window_status: status, drinking_window_note: note })
+    .eq('id', id)
+  if (error) throw error
+}
+
 // ── Delete a wine entirely ─────────────────────────────────────────────────
 export async function deleteWine(id) {
   const { error } = await supabase.from('wines').delete().eq('id', id)

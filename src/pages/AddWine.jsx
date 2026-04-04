@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import WineForm, { EMPTY_FORM } from '../components/WineForm'
 import { addWine } from '../lib/wines'
+import { estimateInBackground } from '../lib/drinkingWindow'
 
 // Resize image to max 1280px wide/tall and return a base64 JPEG string
 async function compressImage(file) {
@@ -96,7 +97,7 @@ export default function AddWine() {
     setError(null)
     setSaving(true)
     try {
-      await addWine({
+      const saved = await addWine({
         name: form.name.trim(),
         producer: form.producer.trim() || null,
         vintage: form.vintage ? Number(form.vintage) : null,
@@ -108,6 +109,8 @@ export default function AddWine() {
         cost: form.cost !== '' ? Number(form.cost) : null,
         notes: form.notes.trim() || null,
       })
+      // Kick off drinking window estimation in the background — doesn't block UX
+      estimateInBackground(saved)
       setSuccess(true)
       setForm(EMPTY_FORM)
       setTimeout(() => {

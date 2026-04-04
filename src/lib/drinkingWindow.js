@@ -1,0 +1,49 @@
+import { updateWine } from './wines'
+
+// Call the serverless function for a list of wines, save results to Supabase,
+// and return the array of { wine_id, status, note } results.
+export async function estimateAndSaveWindows(wines) {
+  const res = await fetch('/api/drinking-window', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wines }),
+  })
+
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Failed to estimate drinking windows.')
+
+  const results = data.wines ?? []
+
+  // Save each result back to Supabase in parallel
+  await Promise.all(
+    results.map(({ wine_id, status, note }) =>
+      updateWine(wine_id, {
+        drinking_window_status: status,
+        drinking_window_note: note,
+      })
+    )
+  )
+
+  return results
+}
+
+// Fire-and-forget: estimate a single wine in the background after adding it.
+// Does not block the caller — failures are silently ignored.
+export function estimateInBackground(wine) {
+  fetch('/api/drinking-window', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wines: [wine] }),
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      const result = data.wines?.[0]
+      if (result) {
+        return updateWine(wine.id, {
+          drinking_window_status: result.status,
+          drinking_window_note: result.note,
+        })
+      }
+    })
+    .catch(() => {}) // silent — user can refresh manually from the dashboard
+}

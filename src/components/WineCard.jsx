@@ -1,3 +1,5 @@
+import DrinkingWindowBadge from './DrinkingWindowBadge'
+
 const COLOUR_STYLES = {
   red:       { dot: 'bg-red-700',      badge: 'bg-red-950 text-red-300',      label: 'Red' },
   white:     { dot: 'bg-yellow-300',   badge: 'bg-yellow-950 text-yellow-300', label: 'White' },
@@ -17,11 +19,12 @@ export default function WineCard({ wine }) {
           <h3 className="font-semibold text-neutral-100 leading-snug truncate">{wine.name}</h3>
           <p className="text-sm text-neutral-400 truncate">{wine.producer}</p>
         </div>
-        <div className="flex-shrink-0 flex items-center gap-2">
+        <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
           <span className={`colour-badge ${style.badge}`}>
             <span className={`w-2 h-2 rounded-full ${style.dot}`} />
             {style.label}
           </span>
+          <DrinkingWindowBadge status={wine.drinking_window_status} />
         </div>
       </div>
 
