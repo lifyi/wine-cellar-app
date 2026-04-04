@@ -38,7 +38,7 @@ export default function Inventory() {
   async function handleDrinkOne(wine) {
     setPendingDrink(wine.id)
     try {
-      const updated = await drinkOne(wine.id, wine.quantity)
+      const updated = await drinkOne(wine)
       setWines((prev) =>
         updated
           ? prev.map((w) => (w.id === wine.id ? updated : w))
