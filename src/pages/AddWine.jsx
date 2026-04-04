@@ -106,6 +106,7 @@ export default function AddWine() {
         colour: form.colour,
         quantity: Number(form.quantity),
         cost: form.cost !== '' ? Number(form.cost) : null,
+        notes: form.notes.trim() || null,
       })
       setSuccess(true)
       setForm(EMPTY_FORM)

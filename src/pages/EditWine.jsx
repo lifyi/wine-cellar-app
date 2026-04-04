@@ -25,6 +25,7 @@ export default function EditWine() {
           colour:       wine.colour ?? 'red',
           quantity:     wine.quantity ?? 1,
           cost:         wine.cost ?? '',
+          notes:        wine.notes ?? '',
         })
       })
       .catch((err) => setError(err.message))
@@ -51,6 +52,7 @@ export default function EditWine() {
         colour: form.colour,
         quantity: Number(form.quantity),
         cost: form.cost !== '' ? Number(form.cost) : null,
+        notes: form.notes.trim() || null,
       })
       setSuccess(true)
       setTimeout(() => navigate('/inventory'), 1200)

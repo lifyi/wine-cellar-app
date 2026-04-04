@@ -20,6 +20,7 @@ export const EMPTY_FORM = {
   colour: 'red',
   quantity: 1,
   cost: '',
+  notes: '',
 }
 
 export default function WineForm({
@@ -172,6 +173,18 @@ export default function WineForm({
             </button>
           ))}
         </div>
+      </Field>
+
+      {/* Notes */}
+      <Field label="Notes">
+        <textarea
+          name="notes"
+          value={form.notes}
+          onChange={onChange}
+          placeholder="Tasting notes, food pairings, personal comments…"
+          rows={4}
+          className="input-field resize-none"
+        />
       </Field>
 
       {/* Submit */}

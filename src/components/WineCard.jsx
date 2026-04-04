@@ -44,6 +44,11 @@ export default function WineCard({ wine }) {
         )}
       </div>
 
+      {/* Notes */}
+      {wine.notes && (
+        <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
+      )}
+
       {/* Quantity pill */}
       <div className="flex items-center gap-2 pt-1 border-t border-neutral-800">
         <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
