@@ -43,6 +43,9 @@ export default function AddWine() {
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
   const [scanned, setScanned] = useState(false)
+  const [textInput, setTextInput] = useState('')
+  const [parsing, setParsing] = useState(false)
+  const [parseError, setParseError] = useState(null)
   const [scanDrinkingWindow, setScanDrinkingWindow] = useState(null)
   const [scanInferred, setScanInferred] = useState([])
   const [priceRange, setPriceRange] = useState(null)
@@ -55,67 +58,72 @@ export default function AddWine() {
     setForm((f) => ({ ...f, [name]: value }))
   }
 
+  // Shared: apply Claude API response to form state
+  function applyApiData(data) {
+    setForm((f) => ({
+      ...f,
+      name:          data.name          != null ? String(data.name)          : f.name,
+      producer:      data.producer      != null ? String(data.producer)      : f.producer,
+      vintage:       data.vintage       != null ? String(data.vintage)       : f.vintage,
+      region:        data.region        != null ? String(data.region)        : f.region,
+      country:       data.country       != null ? String(data.country)       : f.country,
+      grape_variety: data.grape_variety != null ? String(data.grape_variety) : f.grape_variety,
+      colour:        data.colour        != null ? data.colour                : f.colour,
+      notes:         data.notes         != null ? String(data.notes)         : f.notes,
+      cost:          data.cost          != null ? String(data.cost)          : f.cost,
+      ratings:       data.ratings       != null ? String(data.ratings)       : f.ratings,
+    }))
+    if (data.drinking_window_status) {
+      setScanDrinkingWindow({
+        status:     data.drinking_window_status,
+        note:       data.drinking_window_note   ?? null,
+        start_year: data.drinking_window_start  ?? null,
+        end_year:   data.drinking_window_end    ?? null,
+      })
+    }
+    setScanInferred(Array.isArray(data.inferred) ? data.inferred : [])
+    if (data.price_range_sgd?.min != null && data.price_range_sgd?.max != null) {
+      setPriceRange(data.price_range_sgd)
+    }
+    setScanned(true)
+  }
+
   async function handleScan(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    // Reset so the same photo can be re-scanned if needed
     e.target.value = ''
-
-    setScanError(null)
-    setScanned(false)
-    setScanDrinkingWindow(null)
-    setScanInferred([])
-    setPriceRange(null)
+    setScanError(null); setScanned(false); setScanDrinkingWindow(null); setScanInferred([]); setPriceRange(null)
     setScanning(true)
-
     try {
       const imageBase64 = await compressImage(file)
-
       const res = await fetch('/api/scan-label', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64, mimeType: 'image/jpeg' }),
       })
-
       const data = await res.json()
-
       if (!res.ok) throw new Error(data.error || 'Scan failed')
+      applyApiData(data)
+    } catch (err) { setScanError(err.message) }
+    finally { setScanning(false) }
+  }
 
-      // Pre-fill form — only overwrite fields Claude found; keep existing values otherwise
-      setForm((f) => ({
-        ...f,
-        name:          data.name          != null ? String(data.name)          : f.name,
-        producer:      data.producer      != null ? String(data.producer)      : f.producer,
-        vintage:       data.vintage       != null ? String(data.vintage)       : f.vintage,
-        region:        data.region        != null ? String(data.region)        : f.region,
-        country:       data.country       != null ? String(data.country)       : f.country,
-        grape_variety: data.grape_variety != null ? String(data.grape_variety) : f.grape_variety,
-        colour:        data.colour        != null ? data.colour                : f.colour,
-        notes:         data.notes         != null ? String(data.notes)         : f.notes,
-        cost:          data.cost          != null ? String(data.cost)          : f.cost,
-        ratings:       data.ratings       != null ? String(data.ratings)       : f.ratings,
-      }))
-
-      // Store drinking window + metadata from scan
-      if (data.drinking_window_status) {
-        setScanDrinkingWindow({
-          status:     data.drinking_window_status,
-          note:       data.drinking_window_note       ?? null,
-          start_year: data.drinking_window_start      ?? null,
-          end_year:   data.drinking_window_end        ?? null,
-        })
-      }
-      setScanInferred(Array.isArray(data.inferred) ? data.inferred : [])
-      if (data.price_range_sgd?.min != null && data.price_range_sgd?.max != null) {
-        setPriceRange(data.price_range_sgd)
-      }
-
-      setScanned(true)
-    } catch (err) {
-      setScanError(err.message)
-    } finally {
-      setScanning(false)
-    }
+  async function handleParseText() {
+    if (!textInput.trim()) return
+    setParseError(null); setScanned(false); setScanDrinkingWindow(null); setScanInferred([]); setPriceRange(null)
+    setParsing(true)
+    try {
+      const res = await fetch('/api/parse-wine-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: textInput.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Parse failed')
+      applyApiData(data)
+      setTextInput('')
+    } catch (err) { setParseError(err.message) }
+    finally { setParsing(false) }
   }
 
   // Core save — called after duplicate check is resolved
@@ -305,6 +313,36 @@ export default function AddWine() {
             )}
           </label>
 
+        </div>
+
+        {/* Text / URL paste */}
+        <div className="w-full space-y-1.5">
+          <p className="text-xs text-neutral-500">Or paste a wine name, description, or product URL</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleParseText()}
+              placeholder="e.g. Opus One 2019 or paste URL"
+              className="input-field flex-1 text-sm"
+              disabled={scanning || parsing}
+            />
+            <button
+              type="button"
+              onClick={handleParseText}
+              disabled={!textInput.trim() || scanning || parsing}
+              className="btn-secondary text-sm px-3 flex-shrink-0"
+            >
+              {parsing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : 'Analyse'}
+            </button>
+          </div>
+          {parseError && <p className="text-xs text-red-400">{parseError}</p>}
         </div>
       </div>
 

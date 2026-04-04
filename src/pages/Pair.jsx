@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import WineCard from '../components/WineCard'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
 import { getWines, drinkOne } from '../lib/wines'
+import { getWishlist } from '../lib/wishlist'
 
 export default function Pair() {
   const [meal, setMeal] = useState('')
@@ -9,6 +11,7 @@ export default function Pair() {
   const [error, setError] = useState(null)
   const [recommendations, setRecommendations] = useState(null)
   const [generalAdvice, setGeneralAdvice] = useState(null)
+  const [wishlistSuggestions, setWishlistSuggestions] = useState(null)
   const [wineMap, setWineMap] = useState({})
   const [pendingDrink, setPendingDrink] = useState(null)
   const [drankIds, setDrankIds] = useState(new Set())
@@ -21,10 +24,12 @@ export default function Pair() {
     setError(null)
     setRecommendations(null)
     setGeneralAdvice(null)
+    setWishlistSuggestions(null)
     setDrankIds(new Set())
 
     try {
-      const wines = await getWines()
+      // Load inventory and wishlist in parallel
+      const [wines, wishlist] = await Promise.all([getWines(), getWishlist().catch(() => [])])
 
       if (wines.length === 0) {
         setError('Your inventory is empty — add some wines first before pairing.')
@@ -34,7 +39,7 @@ export default function Pair() {
       const res = await fetch('/api/pair-wine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meal: meal.trim(), wines }),
+        body: JSON.stringify({ meal: meal.trim(), wines, wishlist }),
       })
 
       const data = await res.json()
@@ -43,6 +48,7 @@ export default function Pair() {
       setWineMap(Object.fromEntries(wines.map((w) => [w.id, w])))
       setRecommendations(data.recommendations ?? [])
       setGeneralAdvice(data.general_advice ?? null)
+      setWishlistSuggestions(data.wishlist_suggestions?.length ? data.wishlist_suggestions : null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -130,6 +136,34 @@ export default function Pair() {
               {generalAdvice && (
                 <p className="text-neutral-500 text-xs leading-relaxed">{generalAdvice}</p>
               )}
+            </div>
+          )}
+
+          {/* Wishlist suggestions — shown when inventory match is weak/absent */}
+          {wishlistSuggestions && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                Consider picking up from your wishlist
+              </p>
+              {wishlistSuggestions.map((ws) => (
+                <div key={ws.wishlist_id} className="card space-y-2 border-wine-900/50 bg-wine-950/20">
+                  <div className="flex items-start gap-2.5">
+                    <svg className="w-4 h-4 text-wine-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-neutral-200">{ws.name}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{ws.explanation}</p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/wishlist"
+                    className="text-xs text-wine-400 hover:text-wine-300 transition-colors"
+                  >
+                    View wishlist →
+                  </Link>
+                </div>
+              ))}
             </div>
           )}
 

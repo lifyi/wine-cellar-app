@@ -6,6 +6,7 @@ import EditWine from './pages/EditWine'
 import Inventory from './pages/Inventory'
 import History from './pages/History'
 import Pair from './pages/Pair'
+import Wishlist from './pages/Wishlist'
 
 export default function App() {
   return (
@@ -60,6 +61,14 @@ export default function App() {
             element={
               <PageWrapper title="Food Pairing">
                 <Pair />
+              </PageWrapper>
+            }
+          />
+          <Route
+            path="/wishlist"
+            element={
+              <PageWrapper title="Wishlist">
+                <Wishlist />
               </PageWrapper>
             }
           />
