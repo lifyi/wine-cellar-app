@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import WineForm, { EMPTY_FORM } from '../components/WineForm'
-import { addWine, updateWine } from '../lib/wines'
+import { addWine, updateWine, findDuplicateWine } from '../lib/wines'
 import { estimateInBackground } from '../lib/drinkingWindow'
+import DuplicateWineModal from '../components/DuplicateWineModal'
 
 // Resize image to max 1280px wide/tall and return a base64 JPEG string
 async function compressImage(file) {
@@ -47,6 +48,7 @@ export default function AddWine() {
   const [priceRange, setPriceRange] = useState(null)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+  const [duplicateWine, setDuplicateWine] = useState(null)
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -116,10 +118,10 @@ export default function AddWine() {
     }
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError(null)
+  // Core save — called after duplicate check is resolved
+  async function saveNewWine() {
     setSaving(true)
+    setError(null)
     try {
       const saved = await addWine({
         name: form.name.trim(),
@@ -134,28 +136,67 @@ export default function AddWine() {
         ratings: form.ratings.trim() || null,
         notes: form.notes.trim() || null,
       })
-      // Use drinking window from scan if we already have one; otherwise estimate in background
+      // Use drinking window from scan if available; otherwise estimate in background
       if (scanDrinkingWindow?.status) {
         updateWine(saved.id, {
           drinking_window_status: scanDrinkingWindow.status,
           drinking_window_note:   scanDrinkingWindow.note       ?? null,
           drinking_window_start:  scanDrinkingWindow.start_year ?? null,
           drinking_window_end:    scanDrinkingWindow.end_year   ?? null,
-        }).catch(() => {}) // fire-and-forget
+        }).catch(() => {})
       } else {
         estimateInBackground(saved)
       }
       setSuccess(true)
       setForm(EMPTY_FORM)
-      setTimeout(() => {
-        setSuccess(false)
-        navigate('/')
-      }, 1200)
+      setTimeout(() => { setSuccess(false); navigate('/') }, 1200)
     } catch (err) {
       setError(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(null)
+    setSaving(true)
+    // Check for a duplicate before saving
+    try {
+      const dup = await findDuplicateWine(form.name.trim(), form.vintage ? Number(form.vintage) : null)
+      if (dup) {
+        setDuplicateWine(dup)
+        setSaving(false)
+        return // pause — wait for user decision in modal
+      }
+    } catch {
+      // duplicate check failed — just proceed with save
+    }
+    setSaving(false)
+    saveNewWine()
+  }
+
+  // Modal: merge quantity into existing wine
+  async function handleAddToExisting() {
+    const dup = duplicateWine
+    setDuplicateWine(null)
+    setSaving(true)
+    try {
+      await updateWine(dup.id, { quantity: dup.quantity + Number(form.quantity) })
+      setSuccess(true)
+      setForm(EMPTY_FORM)
+      setTimeout(() => { setSuccess(false); navigate('/') }, 1200)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Modal: ignore duplicate, create a new separate record
+  function handleSaveAsNew() {
+    setDuplicateWine(null)
+    saveNewWine()
   }
 
   return (
@@ -285,6 +326,17 @@ export default function AddWine() {
         success={success}
         successMessage="Wine added! Returning to dashboard…"
       />
+
+      {/* Duplicate wine modal */}
+      {duplicateWine && (
+        <DuplicateWineModal
+          existingWine={duplicateWine}
+          newQuantity={Number(form.quantity)}
+          onAddToExisting={handleAddToExisting}
+          onSaveAsNew={handleSaveAsNew}
+          onCancel={() => setDuplicateWine(null)}
+        />
+      )}
     </div>
   )
 }

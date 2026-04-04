@@ -2,8 +2,18 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import WineCard from '../components/WineCard'
 import { WINDOW_STYLES, WINDOW_ORDER } from '../components/DrinkingWindowBadge'
-import { getWines } from '../lib/wines'
+import { getWines, getDrinkingHistoryCount } from '../lib/wines'
 import { estimateAndSaveWindows } from '../lib/drinkingWindow'
+
+// Colour dot + bar fill colours (matches WineCard palette)
+const COLOUR_ORDER = ['red', 'white', 'rosé', 'sparkling', 'dessert']
+const COLOUR_META = {
+  red:       { dot: 'bg-red-700',     bar: 'bg-red-700',     label: 'Red' },
+  white:     { dot: 'bg-yellow-300',  bar: 'bg-yellow-400',  label: 'White' },
+  rosé:      { dot: 'bg-pink-400',    bar: 'bg-pink-400',    label: 'Rosé' },
+  sparkling: { dot: 'bg-sky-300',     bar: 'bg-sky-400',     label: 'Sparkling' },
+  dessert:   { dot: 'bg-amber-400',   bar: 'bg-amber-400',   label: 'Dessert' },
+}
 
 export default function Dashboard() {
   const [wines, setWines] = useState([])
@@ -12,29 +22,74 @@ export default function Dashboard() {
   const [windowFilter, setWindowFilter] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState(null)
+  const [drunkCount, setDrunkCount] = useState(0)
 
   useEffect(() => {
-    getWines()
-      .then(setWines)
+    Promise.all([getWines(), getDrinkingHistoryCount()])
+      .then(([winesData, count]) => {
+        setWines(winesData)
+        setDrunkCount(count)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
 
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const currentYear = new Date().getFullYear()
   const totalBottles = wines.reduce((sum, w) => sum + (w.quantity ?? 0), 0)
 
-  // Per-status counts
+  // Expiring soon: drink_now OR end year has passed
+  const expiringSoon = wines.filter(
+    (w) =>
+      w.drinking_window_status === 'drink_now' ||
+      (w.drinking_window_end != null && w.drinking_window_end <= currentYear)
+  )
+
+  // Collection value & avg price (weighted by quantity)
+  const totalValue = wines.reduce((sum, w) => sum + (w.cost ?? 0) * (w.quantity ?? 0), 0)
+  const winesWithCost = wines.filter((w) => w.cost != null)
+  const bottlesWithCost = winesWithCost.reduce((sum, w) => sum + (w.quantity ?? 0), 0)
+  const avgPrice =
+    bottlesWithCost > 0
+      ? winesWithCost.reduce((sum, w) => sum + w.cost * (w.quantity ?? 0), 0) / bottlesWithCost
+      : null
+
+  // Colour breakdown (bottle counts)
+  const colourBottles = COLOUR_ORDER.reduce((acc, c) => {
+    acc[c] = wines.filter((w) => w.colour === c).reduce((sum, w) => sum + (w.quantity ?? 0), 0)
+    return acc
+  }, {})
+
+  // Top 3 countries by bottle count
+  const countryMap = {}
+  wines.forEach((w) => {
+    if (w.country) countryMap[w.country] = (countryMap[w.country] ?? 0) + (w.quantity ?? 0)
+  })
+  const topCountries = Object.entries(countryMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+
+  // Top 3 grape varieties by bottle count
+  const grapeMap = {}
+  wines.forEach((w) => {
+    if (w.grape_variety) grapeMap[w.grape_variety] = (grapeMap[w.grape_variety] ?? 0) + (w.quantity ?? 0)
+  })
+  const topGrapes = Object.entries(grapeMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+
+  // ── Drinking window filter state ──────────────────────────────────────────
   const windowCounts = WINDOW_ORDER.reduce((acc, s) => {
     acc[s] = wines.filter((w) => w.drinking_window_status === s).length
     return acc
   }, {})
   const estimatedCount = WINDOW_ORDER.reduce((sum, s) => sum + windowCounts[s], 0)
 
-  // Apply filter
+  // Apply filter (including custom 'expiring_soon' pseudo-filter)
   const filtered =
     windowFilter === 'all'
       ? wines
+      : windowFilter === 'expiring_soon'
+      ? expiringSoon
       : wines.filter((w) => w.drinking_window_status === windowFilter)
 
+  // ── Refresh all drinking windows ──────────────────────────────────────────
   async function handleRefreshAll() {
     if (!wines.length) return
     setRefreshing(true)
@@ -59,7 +114,39 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
 
-      {/* Stats bar */}
+      {/* ── Expiring soon banner ─────────────────────────────────────────── */}
+      {!loading && expiringSoon.length > 0 && (
+        <button
+          onClick={() => setWindowFilter(windowFilter === 'expiring_soon' ? 'all' : 'expiring_soon')}
+          className={`w-full text-left flex items-center justify-between gap-3 card transition-colors duration-100 ${
+            windowFilter === 'expiring_soon'
+              ? 'border-amber-700 bg-amber-950/50'
+              : 'border-amber-900 bg-amber-950/20 hover:border-amber-800'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-amber-300">
+                {expiringSoon.length} {expiringSoon.length === 1 ? 'wine' : 'wines'} to drink soon
+              </p>
+              <p className="text-xs text-amber-500 mt-0.5">
+                {windowFilter === 'expiring_soon' ? 'Tap to show all' : 'Tap to filter'}
+              </p>
+            </div>
+          </div>
+          <svg
+            className={`w-4 h-4 text-amber-500 flex-shrink-0 transition-transform duration-150 ${windowFilter === 'expiring_soon' ? 'rotate-90' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+
+      {/* ── Stats bar ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label="Total Bottles"
@@ -81,7 +168,82 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Drinking window section */}
+      {/* ── Collection stats ─────────────────────────────────────────────── */}
+      {!loading && wines.length > 0 && (
+        <div className="card space-y-4">
+          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Collection</p>
+
+          {/* Key numbers */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-neutral-500 mb-0.5">Cellar Value</p>
+              <p className="text-sm font-bold text-neutral-100">
+                {totalValue > 0 ? `S$${Math.round(totalValue).toLocaleString()}` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-500 mb-0.5">Avg / Bottle</p>
+              <p className="text-sm font-bold text-neutral-100">
+                {avgPrice != null ? `S$${Math.round(avgPrice)}` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-500 mb-0.5">Drunk</p>
+              <p className="text-sm font-bold text-neutral-100">{drunkCount}</p>
+            </div>
+          </div>
+
+          {/* Colour breakdown */}
+          {totalBottles > 0 && COLOUR_ORDER.some((c) => colourBottles[c] > 0) && (
+            <div className="space-y-2 pt-1 border-t border-neutral-800">
+              {COLOUR_ORDER.filter((c) => colourBottles[c] > 0).map((c) => {
+                const meta = COLOUR_META[c]
+                const pct = Math.round((colourBottles[c] / totalBottles) * 100)
+                return (
+                  <div key={c} className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+                    <span className="text-xs text-neutral-500 w-14 capitalize">{meta.label}</span>
+                    <div className="flex-1 bg-neutral-800 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full ${meta.bar}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-neutral-500 w-6 text-right">{colourBottles[c]}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Top countries + top grapes */}
+          {(topCountries.length > 0 || topGrapes.length > 0) && (
+            <div className="grid grid-cols-2 gap-4 pt-1 border-t border-neutral-800">
+              {topCountries.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-neutral-500">Top Countries</p>
+                  {topCountries.map(([name, count]) => (
+                    <div key={name} className="flex items-baseline justify-between gap-1">
+                      <span className="text-xs text-neutral-400 truncate">{name}</span>
+                      <span className="text-xs text-neutral-600 flex-shrink-0">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {topGrapes.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-neutral-500">Top Grapes</p>
+                  {topGrapes.map(([name, count]) => (
+                    <div key={name} className="flex items-baseline justify-between gap-1">
+                      <span className="text-xs text-neutral-400 truncate">{name}</span>
+                      <span className="text-xs text-neutral-600 flex-shrink-0">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Drinking window section ───────────────────────────────────────── */}
       {!loading && wines.length > 0 && (
         <div className="space-y-3">
 
@@ -148,7 +310,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Error state */}
+      {/* ── Error state ──────────────────────────────────────────────────── */}
       {error && (
         <div className="card border-red-900 bg-red-950/30 text-red-300 text-sm">
           <p className="font-medium mb-1">Could not load wines</p>
@@ -157,7 +319,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* ── Loading skeleton ─────────────────────────────────────────────── */}
       {loading && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -173,7 +335,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Empty cellar */}
+      {/* ── Empty cellar ─────────────────────────────────────────────────── */}
       {!loading && !error && wines.length === 0 && (
         <div className="card flex flex-col items-center gap-4 py-10 text-center">
           <div className="w-14 h-14 rounded-2xl bg-wine-950 flex items-center justify-center">
@@ -189,14 +351,17 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Filter label */}
+      {/* ── Filter label ─────────────────────────────────────────────────── */}
       {!loading && wines.length > 0 && windowFilter !== 'all' && (
         <p className="text-xs text-neutral-500">
-          {filtered.length} {filtered.length === 1 ? 'wine' : 'wines'} · {WINDOW_STYLES[windowFilter]?.label}
+          {filtered.length} {filtered.length === 1 ? 'wine' : 'wines'} ·{' '}
+          {windowFilter === 'expiring_soon'
+            ? 'Drink soon'
+            : WINDOW_STYLES[windowFilter]?.label}
         </p>
       )}
 
-      {/* Wine cards */}
+      {/* ── Wine cards ───────────────────────────────────────────────────── */}
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-3">
           {filtered.map((wine) => (
@@ -205,10 +370,10 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* No results for active filter */}
+      {/* ── No results for active filter ─────────────────────────────────── */}
       {!loading && wines.length > 0 && windowFilter !== 'all' && filtered.length === 0 && (
         <div className="card text-center py-6 text-neutral-500 text-sm">
-          No wines with "{WINDOW_STYLES[windowFilter]?.label}" status yet.
+          No wines matching this filter.
         </div>
       )}
     </div>

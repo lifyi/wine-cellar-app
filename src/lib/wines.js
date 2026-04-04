@@ -102,3 +102,25 @@ export async function deleteWine(id) {
   const { error } = await supabase.from('wines').delete().eq('id', id)
   if (error) throw error
 }
+
+// ── Count total bottles drunk (fast — no row data returned) ───────────────
+export async function getDrinkingHistoryCount() {
+  const { count, error } = await supabase
+    .from('drinking_history')
+    .select('*', { count: 'exact', head: true })
+  if (error) throw error
+  return count ?? 0
+}
+
+// ── Find an existing wine by name (case-insensitive) + vintage ────────────
+export async function findDuplicateWine(name, vintage) {
+  let query = supabase.from('wines').select('*').ilike('name', name.trim())
+  if (vintage != null) {
+    query = query.eq('vintage', vintage)
+  } else {
+    query = query.is('vintage', null)
+  }
+  const { data, error } = await query.limit(1)
+  if (error) throw error
+  return data?.[0] ?? null
+}
