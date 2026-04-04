@@ -53,7 +53,9 @@ export default function WineCard({ wine }) {
 
       {/* Critic ratings */}
       {wine.ratings && (
-        <p className="text-xs font-mono text-neutral-400 tracking-wide">{wine.ratings}</p>
+        <p className={`text-xs font-mono tracking-wide ${wine.ratings === 'N/A' ? 'text-neutral-700' : 'text-neutral-400'}`}>
+          {wine.ratings}
+        </p>
       )}
 
       {/* Notes */}

@@ -89,12 +89,12 @@ export default function Inventory() {
           body: JSON.stringify({ name: wine.name, vintage: wine.vintage ?? null }),
         })
         const data = await res.json()
-        if (data.ratings) {
-          await updateWine(wine.id, { ratings: data.ratings })
-          setWines((prev) =>
-            prev.map((w) => (w.id === wine.id ? { ...w, ratings: data.ratings } : w))
-          )
-        }
+        // Save whatever was found, or "N/A" so this wine is skipped on future refreshes
+        const ratingsValue = data.ratings || 'N/A'
+        await updateWine(wine.id, { ratings: ratingsValue })
+        setWines((prev) =>
+          prev.map((w) => (w.id === wine.id ? { ...w, ratings: ratingsValue } : w))
+        )
       } catch {
         // skip failed wines, continue with the rest
       }
@@ -285,7 +285,9 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
           <p className="text-xs text-neutral-600 truncate">{wine.drinking_window_note}</p>
         )}
         {wine.ratings && (
-          <p className="text-xs font-mono text-neutral-500 truncate">{wine.ratings}</p>
+          <p className={`text-xs font-mono truncate ${wine.ratings === 'N/A' ? 'text-neutral-700' : 'text-neutral-500'}`}>
+            {wine.ratings}
+          </p>
         )}
       </div>
 
