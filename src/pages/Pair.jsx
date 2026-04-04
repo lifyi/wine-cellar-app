@@ -71,7 +71,7 @@ export default function Pair() {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="space-y-1.5">
           <label className="block text-sm font-medium text-neutral-300">
-            What's for dinner?
+            Hello, what are we having today?
           </label>
           <input
             type="text"
