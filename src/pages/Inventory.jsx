@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import ColourBadge, { COLOUR_STYLES } from '../components/ColourBadge'
 import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
-import { getWines, drinkOne, deleteWine } from '../lib/wines'
+import { getWines, drinkOne, deleteWine, updateWine } from '../lib/wines'
 
 const COLOURS = ['all', 'red', 'white', 'rosé', 'sparkling', 'dessert']
 
@@ -16,6 +16,9 @@ export default function Inventory() {
   const [pendingDrink, setPendingDrink] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [modalWine, setModalWine] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
+  const [refreshDone, setRefreshDone] = useState(false)
 
   useEffect(() => {
     getWines()
@@ -37,6 +40,9 @@ export default function Inventory() {
     const matchesColour = colourFilter === 'all' || w.colour === colourFilter
     return matchesSearch && matchesColour
   })
+
+  // Wines that don't yet have ratings
+  const missingRatings = wines.filter((w) => !w.ratings?.trim())
 
   async function handleDrinkOne(wine, note) {
     setModalWine(null)
@@ -66,6 +72,40 @@ export default function Inventory() {
     } finally {
       setPendingDelete(null)
     }
+  }
+
+  // Bulk refresh — only processes wines with no ratings
+  async function handleRefreshRatings() {
+    if (missingRatings.length === 0 || refreshing) return
+    setRefreshing(true)
+    setRefreshDone(false)
+    setRefreshProgress({ done: 0, total: missingRatings.length })
+
+    for (const wine of missingRatings) {
+      try {
+        const res = await fetch('/api/get-ratings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: wine.name, vintage: wine.vintage ?? null }),
+        })
+        const data = await res.json()
+        if (data.ratings) {
+          await updateWine(wine.id, { ratings: data.ratings })
+          setWines((prev) =>
+            prev.map((w) => (w.id === wine.id ? { ...w, ratings: data.ratings } : w))
+          )
+        }
+      } catch {
+        // skip failed wines, continue with the rest
+      }
+      setRefreshProgress((prev) => ({ ...prev, done: prev.done + 1 }))
+    }
+
+    setRefreshing(false)
+    setRefreshDone(true)
+    setRefreshProgress(null)
+    // Clear the done banner after a few seconds
+    setTimeout(() => setRefreshDone(false), 4000)
   }
 
   return (
@@ -107,6 +147,42 @@ export default function Inventory() {
           )
         })}
       </div>
+
+      {/* Refresh Ratings — shown when wines are missing ratings */}
+      {!loading && missingRatings.length > 0 && (
+        <button
+          onClick={handleRefreshRatings}
+          disabled={refreshing}
+          className="w-full flex items-center justify-center gap-2 btn-secondary text-sm disabled:opacity-60"
+        >
+          {refreshing ? (
+            <>
+              <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Fetching ratings… {refreshProgress ? `(${refreshProgress.done}/${refreshProgress.total})` : ''}
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+              Refresh Ratings ({missingRatings.length} missing)
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Refresh done banner */}
+      {refreshDone && (
+        <div className="flex items-center gap-2 text-xs text-green-400">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Ratings updated — wines already rated were left unchanged
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -159,10 +235,10 @@ export default function Inventory() {
               onDrink={() => setModalWine(wine)}
               onDelete={() => handleDelete(wine.id)}
             />
-
           ))}
         </div>
       )}
+
       {/* Drink confirm modal */}
       {modalWine && (
         <DrinkConfirmModal
