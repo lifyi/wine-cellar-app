@@ -7,6 +7,9 @@ dist-ssr/
 
 # Environment variables — NEVER commit this file
 .env
+
+# Personal accounts reference — keep private
+ACCOUNTS.md
 .env.local
 .env.*.local
 
