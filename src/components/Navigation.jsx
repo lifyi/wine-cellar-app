@@ -37,6 +37,15 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    to: '/pair',
+    label: 'Pair',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18M3 9h4a2 2 0 002-2V3M9 21V9M21 3v4a2 2 0 01-2 2h-4M15 9v12" />
+      </svg>
+    ),
+  },
 ]
 
 export default function Navigation() {

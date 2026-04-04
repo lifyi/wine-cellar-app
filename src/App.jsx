@@ -5,6 +5,7 @@ import AddWine from './pages/AddWine'
 import EditWine from './pages/EditWine'
 import Inventory from './pages/Inventory'
 import History from './pages/History'
+import Pair from './pages/Pair'
 
 export default function App() {
   return (
@@ -51,6 +52,14 @@ export default function App() {
             element={
               <PageWrapper title="Drinking History">
                 <History />
+              </PageWrapper>
+            }
+          />
+          <Route
+            path="/pair"
+            element={
+              <PageWrapper title="Food Pairing">
+                <Pair />
               </PageWrapper>
             }
           />
