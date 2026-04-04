@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-wine-700 hover:bg-wine-600 active:bg-wine-800 text-white font-semibold py-3 px-6 rounded-xl transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-900 text-neutral-100 font-medium py-3 px-6 rounded-xl transition-colors duration-150;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-neutral-800 active:bg-neutral-900 text-neutral-400 hover:text-neutral-100 font-medium py-2 px-4 rounded-lg transition-colors duration-150;
+  }
+
+  .input-field {
+    @apply w-full bg-neutral-800 border border-neutral-700 text-neutral-100 placeholder-neutral-500 rounded-xl px-4 py-3 focus:outline-none focus:border-wine-600 focus:ring-1 focus:ring-wine-600 transition-colors duration-150;
+  }
+
+  .card {
+    @apply bg-neutral-900 border border-neutral-800 rounded-2xl p-4;
+  }
+
+  .colour-badge {
+    @apply inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+}
