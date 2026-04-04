@@ -50,8 +50,12 @@ export default function AddWine() {
   const [scanInferred, setScanInferred] = useState([])
   const [priceRange, setPriceRange] = useState(null)
   const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(false)
   const [duplicateWine, setDuplicateWine] = useState(null)
+
+  // Post-save state
+  const [savedWine, setSavedWine] = useState(null)      // set after successful save
+  const [fetchingRatings, setFetchingRatings] = useState(false)
+  const [fetchedRatings, setFetchedRatings] = useState(null)
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -144,6 +148,7 @@ export default function AddWine() {
         ratings: form.ratings.trim() || null,
         notes: form.notes.trim() || null,
       })
+
       // Use drinking window from scan if available; otherwise estimate in background
       if (scanDrinkingWindow?.status) {
         updateWine(saved.id, {
@@ -155,9 +160,50 @@ export default function AddWine() {
       } else {
         estimateInBackground(saved)
       }
-      setSuccess(true)
+
       setForm(EMPTY_FORM)
-      setTimeout(() => { setSuccess(false); navigate('/') }, 1200)
+      setSavedWine(saved)
+
+      if (!saved.ratings) {
+        // Background ratings fetch — does not block navigation
+        setFetchingRatings(true)
+        setFetchedRatings(null)
+
+        // Closure flag prevents double-navigation if both the fetch and
+        // the safety timeout try to navigate at the same time
+        let navigated = false
+        const goHome = () => {
+          if (navigated) return
+          navigated = true
+          navigate('/')
+        }
+
+        fetch('/api/get-ratings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: saved.name, vintage: saved.vintage ?? null }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.ratings) {
+              updateWine(saved.id, { ratings: data.ratings }).catch(() => {})
+              setFetchedRatings(data.ratings)
+            }
+            setFetchingRatings(false)
+            // Short pause so the user sees the ratings before navigating
+            setTimeout(goHome, 1500)
+          })
+          .catch(() => {
+            setFetchingRatings(false)
+            setTimeout(goHome, 800)
+          })
+
+        // Safety: always navigate within 15 seconds regardless
+        setTimeout(goHome, 15000)
+      } else {
+        // Ratings already present — navigate normally
+        setTimeout(() => navigate('/'), 1200)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -191,9 +237,7 @@ export default function AddWine() {
     setSaving(true)
     try {
       await updateWine(dup.id, { quantity: dup.quantity + Number(form.quantity) })
-      setSuccess(true)
-      setForm(EMPTY_FORM)
-      setTimeout(() => { setSuccess(false); navigate('/') }, 1200)
+      setTimeout(() => navigate('/'), 1200)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -207,6 +251,61 @@ export default function AddWine() {
     saveNewWine()
   }
 
+  // ── Post-save view ──────────────────────────────────────────────────────
+  if (savedWine) {
+    return (
+      <div className="space-y-5">
+        <div className="card space-y-4">
+
+          {/* Success header */}
+          <div className="flex items-center gap-2 text-green-400">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="font-medium text-sm">Saved to your cellar</span>
+          </div>
+
+          {/* Wine name + vintage */}
+          <div>
+            <p className="font-semibold text-neutral-100 text-base leading-snug">
+              {savedWine.name}
+              {savedWine.vintage ? (
+                <span className="text-neutral-400 font-normal ml-2 text-sm">{savedWine.vintage}</span>
+              ) : null}
+            </p>
+            {savedWine.producer && (
+              <p className="text-sm text-neutral-500 mt-0.5">{savedWine.producer}</p>
+            )}
+          </div>
+
+          {/* Ratings area */}
+          <div className="min-h-[1.75rem] flex items-center">
+            {fetchingRatings ? (
+              <div className="flex items-center gap-2 text-xs text-neutral-400">
+                <svg className="w-3.5 h-3.5 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Fetching critic ratings…
+              </div>
+            ) : fetchedRatings ? (
+              <div className="flex items-center gap-2 text-xs text-green-400">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="font-mono">{fetchedRatings}</span>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Footer */}
+          <p className="text-xs text-neutral-600">Returning to dashboard…</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Normal add-wine view ────────────────────────────────────────────────
   return (
     <div className="space-y-5">
 
@@ -361,8 +460,8 @@ export default function AddWine() {
         submitLabel="Save to Cellar"
         saving={saving}
         error={error}
-        success={success}
-        successMessage="Wine added! Returning to dashboard…"
+        success={false}
+        successMessage=""
       />
 
       {/* Duplicate wine modal */}

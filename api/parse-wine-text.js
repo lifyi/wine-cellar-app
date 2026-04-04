@@ -1,33 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-// Step 2 fallback — only called when training knowledge returns no ratings
-async function fetchRatingsFromWeb(client, name, vintage) {
-  try {
-    const wineLabel = vintage ? `${name} ${vintage}` : name
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{
-        role: 'user',
-        content: `Search the web for critic ratings for the wine "${wineLabel}". Find scores from James Suckling (JS), Robert Parker/Wine Advocate (RP), and Wine Spectator (WS) for this specific wine and vintage.
-
-Return ONLY this JSON: { "ratings": "JS: 94 | RP: 92 | WS: 91" }
-
-Only include critics with confirmed scores found in search results. Omit critics not found or behind paywalls. If no ratings are found at all, return { "ratings": null }. Return nothing but JSON.`,
-      }],
-    })
-    const textBlock = response.content.find(b => b.type === 'text')
-    const text = textBlock?.text?.trim()
-    if (!text) return null
-    const match = text.match(/\{[\s\S]*\}/)
-    if (!match) return null
-    return JSON.parse(match[0]).ratings ?? null
-  } catch {
-    return null
-  }
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -126,14 +98,7 @@ ${content}`,
       return res.status(422).json({ error: 'Could not extract wine details — try a more specific description.' })
     }
 
-    const data = JSON.parse(match[0])
-
-    // Web search fallback — only if training knowledge returned no ratings and we have a wine name
-    if (!data.ratings && data.name) {
-      data.ratings = await fetchRatingsFromWeb(client, data.name, data.vintage ?? null)
-    }
-
-    return res.status(200).json(data)
+    return res.status(200).json(JSON.parse(match[0]))
   } catch (err) {
     console.error('parse-wine-text error:', err)
     return res.status(500).json({ error: err.message || 'Failed to parse wine details' })
