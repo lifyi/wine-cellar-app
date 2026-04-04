@@ -355,7 +355,7 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
 
       {/* Notes — full text, no truncation */}
       {wine.notes && (
-        <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
+        <p className="text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
       )}
 
       {/* Footer: quantity left, actions right */}

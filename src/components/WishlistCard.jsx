@@ -69,7 +69,7 @@ export default function WishlistCard({ item, onAddToCellar, onRemove, addingId, 
 
       {/* Notes */}
       {item.notes && (
-        <p className="text-sm text-neutral-400 leading-relaxed line-clamp-2">{item.notes}</p>
+        <p className="text-xs text-neutral-400 leading-relaxed line-clamp-2">{item.notes}</p>
       )}
 
       {/* Source */}

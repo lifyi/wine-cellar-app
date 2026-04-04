@@ -64,7 +64,7 @@ export default function WineCard({ wine }) {
 
       {/* Notes */}
       {wine.notes && (
-        <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
+        <p className="text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
       )}
 
       {/* Quantity pill */}
