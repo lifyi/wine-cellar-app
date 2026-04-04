@@ -1,6 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getSupabaseClient } from './_supabase.js'
 
+const ALLOWED_TABLES   = ['wines', 'wishlist']
+const RATING_FIELDS    = ['james_suckling', 'robert_parker', 'wine_spectator']
+
 // Step 1: Try Claude's training knowledge first (cheap, fast)
 async function getRatingsFromTraining(client, name, vintage) {
   const wineLabel = vintage ? `${name} ${vintage}` : name
@@ -71,10 +74,22 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
   }
 
-  const { name, vintage, wine_id } = req.body ?? {}
+  // wine_id    — if provided, save result directly to Supabase
+  // table      — 'wines' (default) or 'wishlist'
+  // null_fields — which fields to update (defaults to all three if omitted)
+  const { name, vintage, wine_id, table = 'wines', null_fields } = req.body ?? {}
+
   if (!name?.trim()) {
     return res.status(400).json({ error: 'Missing wine name' })
   }
+  if (!ALLOWED_TABLES.includes(table)) {
+    return res.status(400).json({ error: 'Invalid table' })
+  }
+
+  // Which fields to write back — if null_fields not provided, update all three
+  const fieldsToUpdate = (Array.isArray(null_fields) && null_fields.length > 0)
+    ? null_fields.filter(f => RATING_FIELDS.includes(f))
+    : RATING_FIELDS
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -87,22 +102,26 @@ export default async function handler(req, res) {
       result = await getRatingsFromWeb(client, name.trim(), vintage ?? null)
     }
 
+    // Build payload — null means not found
     const payload = {
       james_suckling: result?.james_suckling ?? null,
       robert_parker:  result?.robert_parker  ?? null,
       wine_spectator: result?.wine_spectator ?? null,
     }
 
-    // Save directly to Supabase so the result is persisted even if the
-    // browser navigates away before the frontend can call updateWine().
+    // Save directly to Supabase so the result is persisted even if the browser
+    // navigates away before the frontend can call updateWine().
+    // Only update fieldsToUpdate — never overwrite fields that already had a value.
     if (wine_id) {
       try {
         const supabase = getSupabaseClient()
-        await supabase.from('wines').update({
-          james_suckling: payload.james_suckling ?? -1,
-          robert_parker:  payload.robert_parker  ?? -1,
-          wine_spectator: payload.wine_spectator ?? -1,
-        }).eq('id', wine_id)
+        const updateObj = {}
+        for (const field of fieldsToUpdate) {
+          updateObj[field] = payload[field] ?? -1   // -1 = tried, not found
+        }
+        if (Object.keys(updateObj).length > 0) {
+          await supabase.from(table).update(updateObj).eq('id', wine_id)
+        }
       } catch (saveErr) {
         // Non-fatal — log and continue; caller still gets the data
         console.error('get-ratings: Supabase save failed:', saveErr.message)

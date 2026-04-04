@@ -3,7 +3,18 @@ import { getSupabaseClient } from './_supabase.js'
 
 // Fetches critic scores for a batch of wines in a SINGLE Claude call
 // using training knowledge only (no web search, no per-wine API calls).
+//
+// Request body:
+//   wines: [{ id, name, vintage?, null_fields: string[] }]
+//     null_fields — the critic fields that are currently null for this wine.
+//     Only those fields will be written back to Supabase; existing scores are
+//     never overwritten.
+//   table: 'wines' | 'wishlist'  (default 'wines')
+//
 // Returns { results: [{ id, james_suckling, robert_parker, wine_spectator }] }
+
+const ALLOWED_TABLES = ['wines', 'wishlist']
+const RATING_FIELDS  = ['james_suckling', 'robert_parker', 'wine_spectator']
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,9 +25,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
   }
 
-  const { wines } = req.body ?? {}
+  const { wines, table = 'wines' } = req.body ?? {}
   if (!wines?.length) {
     return res.status(400).json({ error: 'No wines provided.' })
+  }
+  if (!ALLOWED_TABLES.includes(table)) {
+    return res.status(400).json({ error: 'Invalid table' })
   }
 
   try {
@@ -49,7 +63,7 @@ Use null for unknown scores. Return nothing but the JSON array.`,
     const text = response.content[0].text.trim()
     const match = text.match(/\[[\s\S]*\]/)
 
-    // Build the results array (nulls on parse failure — caller treats null as -1)
+    // Build the full results array (null on parse failure)
     let results
     if (!match) {
       results = wines.map((w) => ({ id: w.id, james_suckling: null, robert_parker: null, wine_spectator: null }))
@@ -66,16 +80,25 @@ Use null for unknown scores. Return nothing but the JSON array.`,
 
     // Persist directly to Supabase so results are saved even if the browser
     // navigates away before the frontend processes the response.
+    // IMPORTANT: only write back the fields that were null for each wine —
+    // never overwrite existing scores (real scores or -1 sentinels).
     try {
       const supabase = getSupabaseClient()
       await Promise.all(
-        results.map((r) =>
-          supabase.from('wines').update({
-            james_suckling: r.james_suckling ?? -1,
-            robert_parker:  r.robert_parker  ?? -1,
-            wine_spectator: r.wine_spectator ?? -1,
-          }).eq('id', r.id)
-        )
+        results.map((r) => {
+          const wine = wines.find((w) => w.id === r.id)
+          // Which fields to update for this specific wine
+          const fieldsToUpdate = (Array.isArray(wine?.null_fields) && wine.null_fields.length > 0)
+            ? wine.null_fields.filter(f => RATING_FIELDS.includes(f))
+            : RATING_FIELDS  // fallback: update all three if not specified
+
+          const updateObj = {}
+          for (const field of fieldsToUpdate) {
+            updateObj[field] = r[field] ?? -1   // -1 = tried, not found
+          }
+          if (Object.keys(updateObj).length === 0) return Promise.resolve()
+          return supabase.from(table).update(updateObj).eq('id', r.id)
+        })
       )
     } catch (saveErr) {
       // Non-fatal — log and return data anyway so the frontend can update local state

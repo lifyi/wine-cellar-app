@@ -54,6 +54,11 @@ export default function Wishlist() {
   const [addingId, setAddingId]   = useState(null)
   const [removingId, setRemovingId] = useState(null)
 
+  // Bulk refresh ratings state
+  const [refreshing, setRefreshing]         = useState(false)
+  const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
+  const [refreshDone, setRefreshDone]       = useState(false)
+
   // Add-form state
   const [showForm, setShowForm]   = useState(false)
   const [form, setForm]           = useState(EMPTY_FORM)
@@ -187,8 +192,96 @@ export default function Wishlist() {
       setSaveSuccess(true)
       setShowForm(false)
       setTimeout(() => setSaveSuccess(false), 3000)
+
+      // Fire background ratings fetch for any null fields — server writes to Supabase
+      // directly so the result is persisted even if the user navigates away.
+      const nullFields = ['james_suckling', 'robert_parker', 'wine_spectator']
+        .filter((f) => saved[f] === null)
+      if (nullFields.length > 0) {
+        fetch('/api/get-ratings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wine_id:     saved.id,
+            name:        saved.name,
+            vintage:     saved.vintage ?? null,
+            null_fields: nullFields,
+            table:       'wishlist',
+          }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            // Update local state with whatever the lookup returned
+            const update = {}
+            for (const f of nullFields) { update[f] = data[f] ?? -1 }
+            setItems((prev) => prev.map((w) => (w.id === saved.id ? { ...w, ...update } : w)))
+          })
+          .catch(() => {})
+      }
     } catch (err) { setSaveError(err.message) }
     finally { setSaving(false) }
+  }
+
+  // Items where at least one critic field has never been attempted (null = not yet tried)
+  const missingRatings = items.filter(
+    (w) => w.james_suckling === null || w.robert_parker === null || w.wine_spectator === null
+  )
+
+  // Bulk refresh — only processes items with null fields, in batches of 20
+  const RATINGS_BATCH_SIZE = 20
+  const RATINGS_DELAY_MS   = 2000
+
+  async function handleRefreshRatings() {
+    if (missingRatings.length === 0 || refreshing) return
+    setRefreshing(true)
+    setRefreshDone(false)
+    setRefreshProgress({ done: 0, total: missingRatings.length })
+
+    let done = 0
+    for (let i = 0; i < missingRatings.length; i += RATINGS_BATCH_SIZE) {
+      if (i > 0) await new Promise((resolve) => setTimeout(resolve, RATINGS_DELAY_MS))
+
+      const batch = missingRatings.slice(i, i + RATINGS_BATCH_SIZE)
+
+      try {
+        const res = await fetch('/api/get-ratings-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'wishlist',
+            wines: batch.map((w) => ({
+              id:          w.id,
+              name:        w.name,
+              vintage:     w.vintage ?? null,
+              null_fields: ['james_suckling', 'robert_parker', 'wine_spectator'].filter((f) => w[f] === null),
+            })),
+          }),
+        })
+        const data = await res.json()
+        const results = data.results ?? []
+
+        // Server already saved — just update local React state for null fields only
+        for (const result of results) {
+          const wine = batch.find((w) => w.id === result.id)
+          const nullFields = wine ? ['james_suckling', 'robert_parker', 'wine_spectator'].filter((f) => wine[f] === null) : []
+          const update = {}
+          for (const field of nullFields) { update[field] = result[field] ?? -1 }
+          if (Object.keys(update).length > 0) {
+            setItems((prev) => prev.map((w) => (w.id === result.id ? { ...w, ...update } : w)))
+          }
+          done += 1
+          setRefreshProgress({ done, total: missingRatings.length })
+        }
+      } catch {
+        done += batch.length
+        setRefreshProgress({ done, total: missingRatings.length })
+      }
+    }
+
+    setRefreshing(false)
+    setRefreshDone(true)
+    setRefreshProgress(null)
+    setTimeout(() => setRefreshDone(false), 4000)
   }
 
   // ── Move to cellar ────────────────────────────────────────────────────────
@@ -454,6 +547,44 @@ export default function Wishlist() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
           Added to your wishlist!
+        </div>
+      )}
+
+      {/* ── Refresh Ratings — shown when items are missing ratings ─────── */}
+      {!loading && missingRatings.length > 0 && (
+        <button
+          onClick={handleRefreshRatings}
+          disabled={refreshing}
+          className="w-full flex items-center justify-center gap-2 btn-secondary text-sm disabled:opacity-60"
+        >
+          {refreshing ? (
+            <>
+              <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              {refreshProgress?.done > 0
+                ? `${refreshProgress.done} / ${refreshProgress.total} done…`
+                : 'Fetching ratings…'}
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+              Refresh Ratings ({missingRatings.length} missing)
+            </>
+          )}
+        </button>
+      )}
+
+      {/* ── Refresh done banner ──────────────────────────────────────────── */}
+      {refreshDone && (
+        <div className="flex items-center gap-2 text-xs text-green-400">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Ratings updated — wines already rated were left unchanged
         </div>
       )}
 

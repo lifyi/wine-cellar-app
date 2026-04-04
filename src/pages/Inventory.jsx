@@ -98,22 +98,30 @@ export default function Inventory() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            wines: batch.map((w) => ({ id: w.id, name: w.name, vintage: w.vintage ?? null })),
+            table: 'wines',
+            wines: batch.map((w) => ({
+              id:          w.id,
+              name:        w.name,
+              vintage:     w.vintage ?? null,
+              // Only tell the server which fields are null — it won't touch the rest
+              null_fields: ['james_suckling', 'robert_parker', 'wine_spectator'].filter((f) => w[f] === null),
+            })),
           }),
         })
         const data = await res.json()
         const results = data.results ?? []
 
-        // Server already saved results to Supabase — just update local React state
+        // Server already saved — update local state for null fields only
         for (const result of results) {
-          const update = {
-            james_suckling: result.james_suckling ?? -1,
-            robert_parker:  result.robert_parker  ?? -1,
-            wine_spectator: result.wine_spectator ?? -1,
+          const wine = batch.find((w) => w.id === result.id)
+          const nullFields = wine
+            ? ['james_suckling', 'robert_parker', 'wine_spectator'].filter((f) => wine[f] === null)
+            : []
+          const update = {}
+          for (const field of nullFields) { update[field] = result[field] ?? -1 }
+          if (Object.keys(update).length > 0) {
+            setWines((prev) => prev.map((w) => (w.id === result.id ? { ...w, ...update } : w)))
           }
-          setWines((prev) =>
-            prev.map((w) => (w.id === result.id ? { ...w, ...update } : w))
-          )
           done += 1
           setRefreshProgress({ done, total: missingRatings.length })
         }

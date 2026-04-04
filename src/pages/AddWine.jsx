@@ -168,28 +168,30 @@ export default function AddWine() {
       setForm(EMPTY_FORM)
       setSavedWine(saved)
 
-      const hasRatings = saved.james_suckling != null || saved.robert_parker != null || saved.wine_spectator != null
+      // Which critic fields still need filling (null = never looked up yet)
+      const nullFields = ['james_suckling', 'robert_parker', 'wine_spectator']
+        .filter((f) => saved[f] === null)
 
-      if (!hasRatings) {
-        // Background ratings fetch — does not block navigation
+      if (nullFields.length === 3) {
+        // ALL three are null — show the "Fetching critic ratings…" spinner and
+        // delay navigation until the result arrives (or 15 s safety timeout).
         setFetchingRatings(true)
         setFetchedRatings(null)
 
-        // Closure flag prevents double-navigation if both the fetch and
-        // the safety timeout try to navigate at the same time
+        // Closure flag prevents double-navigation from fetch + safety timeout
         let navigated = false
-        const goHome = () => {
-          if (navigated) return
-          navigated = true
-          navigate('/')
-        }
+        const goHome = () => { if (navigated) return; navigated = true; navigate('/') }
 
-        // Pass wine_id so the server saves to Supabase directly — the result
-        // is persisted even if the user navigates away before this .then() runs.
+        // Server saves to Supabase directly — result persisted even if user leaves
         fetch('/api/get-ratings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wine_id: saved.id, name: saved.name, vintage: saved.vintage ?? null }),
+          body: JSON.stringify({
+            wine_id:     saved.id,
+            name:        saved.name,
+            vintage:     saved.vintage ?? null,
+            null_fields: nullFields,
+          }),
         })
           .then((r) => r.json())
           .then((data) => {
@@ -202,15 +204,28 @@ export default function AddWine() {
             setFetchingRatings(false)
             setTimeout(goHome, 1500)
           })
-          .catch(() => {
-            setFetchingRatings(false)
-            setTimeout(goHome, 800)
-          })
+          .catch(() => { setFetchingRatings(false); setTimeout(goHome, 800) })
 
         // Safety: always navigate within 15 seconds regardless
         setTimeout(goHome, 15000)
+
+      } else if (nullFields.length > 0) {
+        // SOME fields are null (e.g. scan returned JS but not RP/WS).
+        // Fire silently in the background — no spinner, navigate normally.
+        fetch('/api/get-ratings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wine_id:     saved.id,
+            name:        saved.name,
+            vintage:     saved.vintage ?? null,
+            null_fields: nullFields,
+          }),
+        }).catch(() => {})
+        setTimeout(() => navigate('/'), 1200)
+
       } else {
-        // Ratings already present — navigate normally
+        // All three fields already have values — navigate immediately
         setTimeout(() => navigate('/'), 1200)
       }
     } catch (err) {
