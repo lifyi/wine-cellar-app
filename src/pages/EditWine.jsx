@@ -24,9 +24,11 @@ export default function EditWine() {
           grape_variety: wine.grape_variety ?? '',
           colour:       wine.colour ?? 'red',
           quantity:     wine.quantity ?? 1,
-          cost:         wine.cost ?? '',
-          ratings:      wine.ratings ?? '',
-          notes:        wine.notes ?? '',
+          cost:           wine.cost ?? '',
+          james_suckling: wine.james_suckling != null && wine.james_suckling > 0 ? String(wine.james_suckling) : '',
+          robert_parker:  wine.robert_parker  != null && wine.robert_parker  > 0 ? String(wine.robert_parker)  : '',
+          wine_spectator: wine.wine_spectator != null && wine.wine_spectator > 0 ? String(wine.wine_spectator) : '',
+          notes:          wine.notes ?? '',
         })
       })
       .catch((err) => setError(err.message))
@@ -52,9 +54,11 @@ export default function EditWine() {
         grape_variety: form.grape_variety.trim() || null,
         colour: form.colour,
         quantity: Number(form.quantity),
-        cost: form.cost !== '' ? Number(form.cost) : null,
-        ratings: form.ratings.trim() || null,
-        notes: form.notes.trim() || null,
+        cost:           form.cost           !== '' ? Number(form.cost)           : null,
+        james_suckling: form.james_suckling !== '' ? Number(form.james_suckling) : null,
+        robert_parker:  form.robert_parker  !== '' ? Number(form.robert_parker)  : null,
+        wine_spectator: form.wine_spectator !== '' ? Number(form.wine_spectator) : null,
+        notes:          form.notes.trim() || null,
       })
       setSuccess(true)
       setTimeout(() => navigate('/inventory'), 1200)

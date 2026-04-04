@@ -11,16 +11,20 @@ async function getRatingsFromTraining(client, name, vintage) {
         role: 'user',
         content: `Using only your training knowledge, what are the critic scores for "${wineLabel}"?
 
-Return ONLY this JSON: { "ratings": "JS: 94 | RP: 92 | WS: 91" }
+Return ONLY this JSON:
+{ "james_suckling": 94, "robert_parker": 92, "wine_spectator": 91 }
 
-Include only James Suckling (JS), Robert Parker/Wine Advocate (RP), and Wine Spectator (WS) scores you are confident about for this specific wine and vintage. Omit critics you are unsure about. If you have no knowledge of any scores, return { "ratings": null }. Return nothing but JSON.`,
+Use an integer for each critic whose score you are confident about for this specific wine and vintage. Use null for any critic whose score you genuinely do not know. Return nothing but JSON.`,
       }],
     })
     const text = response.content[0]?.text?.trim()
     if (!text) return null
     const match = text.match(/\{[\s\S]*\}/)
     if (!match) return null
-    return JSON.parse(match[0]).ratings ?? null
+    const parsed = JSON.parse(match[0])
+    // Return null if all three are null (nothing found)
+    if (parsed.james_suckling == null && parsed.robert_parker == null && parsed.wine_spectator == null) return null
+    return parsed
   } catch {
     return null
   }
@@ -36,11 +40,12 @@ async function getRatingsFromWeb(client, name, vintage) {
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
-        content: `Search the web for critic ratings for the wine "${wineLabel}". Find scores from James Suckling (JS), Robert Parker/Wine Advocate (RP), and Wine Spectator (WS) for this specific wine and vintage.
+        content: `Search the web for critic ratings for the wine "${wineLabel}". Find scores from James Suckling, Robert Parker/Wine Advocate, and Wine Spectator for this specific wine and vintage.
 
-Return ONLY this JSON: { "ratings": "JS: 94 | RP: 92 | WS: 91" }
+Return ONLY this JSON:
+{ "james_suckling": 94, "robert_parker": 92, "wine_spectator": 91 }
 
-Only include critics with confirmed scores found in search results. Omit critics not found or behind paywalls. If no ratings are found at all, return { "ratings": null }. Return nothing but JSON.`,
+Use an integer for each critic with a confirmed score found in search results. Use null for critics not found or behind paywalls. Return nothing but JSON.`,
       }],
     })
     const textBlock = response.content.find(b => b.type === 'text')
@@ -48,7 +53,9 @@ Only include critics with confirmed scores found in search results. Omit critics
     if (!text) return null
     const match = text.match(/\{[\s\S]*\}/)
     if (!match) return null
-    return JSON.parse(match[0]).ratings ?? null
+    const parsed = JSON.parse(match[0])
+    if (parsed.james_suckling == null && parsed.robert_parker == null && parsed.wine_spectator == null) return null
+    return parsed
   } catch {
     return null
   }
@@ -72,14 +79,19 @@ export default async function handler(req, res) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     // Step 1: Training knowledge (no extra cost)
-    let ratings = await getRatingsFromTraining(client, name.trim(), vintage ?? null)
+    let result = await getRatingsFromTraining(client, name.trim(), vintage ?? null)
 
-    // Step 2: Web search only if training returned nothing
-    if (!ratings) {
-      ratings = await getRatingsFromWeb(client, name.trim(), vintage ?? null)
+    // Step 2: Web search only if training returned nothing at all
+    if (!result) {
+      result = await getRatingsFromWeb(client, name.trim(), vintage ?? null)
     }
 
-    return res.status(200).json({ ratings: ratings ?? null })
+    // Return individual fields; null means not found by either method
+    return res.status(200).json({
+      james_suckling: result?.james_suckling ?? null,
+      robert_parker:  result?.robert_parker  ?? null,
+      wine_spectator: result?.wine_spectator ?? null,
+    })
   } catch (err) {
     console.error('get-ratings error:', err)
     return res.status(500).json({ error: err.message || 'Failed to fetch ratings' })

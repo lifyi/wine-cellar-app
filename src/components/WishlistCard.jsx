@@ -51,10 +51,16 @@ export default function WishlistCard({ item, onAddToCellar, onRemove, addingId, 
         )}
       </div>
 
-      {/* Ratings */}
-      {item.ratings && (
-        <p className="text-xs font-mono text-neutral-400 tracking-wide">{item.ratings}</p>
-      )}
+      {/* Critic ratings */}
+      {(() => {
+        const parts = []
+        if (item.james_suckling > 0) parts.push(`JS ${item.james_suckling}`)
+        if (item.robert_parker  > 0) parts.push(`RP ${item.robert_parker}`)
+        if (item.wine_spectator > 0) parts.push(`WS ${item.wine_spectator}`)
+        return parts.length > 0 ? (
+          <p className="text-xs font-mono text-neutral-400 tracking-wide">{parts.join(' · ')}</p>
+        ) : null
+      })()}
 
       {/* Drinking window note */}
       {item.drinking_window_note && (

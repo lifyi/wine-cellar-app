@@ -60,13 +60,15 @@ Return ONLY this JSON object (use null for anything you truly cannot determine):
   "drinking_window_end": 2030,
   "drinking_window_note": "one-sentence reason for the drinking window",
   "price_range_sgd": { "min": 35, "max": 55 },
-  "ratings": "JS: 94 | RP: 92 | WS: 91",
+  "james_suckling": 94,
+  "robert_parker": 92,
+  "wine_spectator": 91,
   "inferred": ["field names inferred from wine knowledge, not visible on label"]
 }
 
 For cost, use the midpoint of price_range_sgd rounded to the nearest dollar.
 For inferred, list only field names NOT visible on the label (e.g. ["grape_variety", "region", "country"]).
-For ratings: actively search your training knowledge for Robert Parker/Wine Advocate (RP), James Suckling (JS), and Wine Spectator (WS) scores for this specific wine and vintage. This field should almost always be filled in for any named wine — a partial string like "JS: 94" is far better than null. Only omit a specific critic if you genuinely have no knowledge of their score for this wine. Only use null if you have no score knowledge at all for any of the three critics. Format: "JS: 94 | RP: 92 | WS: 91".
+For james_suckling, robert_parker, wine_spectator: actively search your training knowledge for James Suckling, Robert Parker/Wine Advocate, and Wine Spectator scores for this specific wine and vintage. Use an integer score (e.g. 94) if you are confident about it. Use null if you genuinely have no knowledge of that critic's score for this wine. These fields should almost always be filled for any named wine — a known partial result is far better than null.
 Return only the JSON, no explanation.`,
             },
           ],

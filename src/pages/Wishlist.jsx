@@ -38,7 +38,9 @@ async function compressImage(file) {
 
 const EMPTY_FORM = {
   name: '', producer: '', vintage: '', region: '', country: '',
-  grape_variety: '', colour: 'red', cost: '', ratings: '', notes: '', source: '',
+  grape_variety: '', colour: 'red', cost: '',
+  james_suckling: '', robert_parker: '', wine_spectator: '',
+  notes: '', source: '',
 }
 
 export default function Wishlist() {
@@ -94,10 +96,12 @@ export default function Wishlist() {
       region:        data.region        != null ? String(data.region)        : f.region,
       country:       data.country       != null ? String(data.country)       : f.country,
       grape_variety: data.grape_variety != null ? String(data.grape_variety) : f.grape_variety,
-      colour:        data.colour        != null ? data.colour                : f.colour,
-      notes:         data.notes         != null ? String(data.notes)         : f.notes,
-      cost:          data.cost          != null ? String(data.cost)          : f.cost,
-      ratings:       data.ratings       != null ? String(data.ratings)       : f.ratings,
+      colour:         data.colour        != null ? data.colour                : f.colour,
+      notes:          data.notes         != null ? String(data.notes)         : f.notes,
+      cost:           data.cost          != null ? String(data.cost)          : f.cost,
+      james_suckling: data.james_suckling != null ? String(data.james_suckling) : f.james_suckling,
+      robert_parker:  data.robert_parker  != null ? String(data.robert_parker)  : f.robert_parker,
+      wine_spectator: data.wine_spectator != null ? String(data.wine_spectator) : f.wine_spectator,
     }))
     if (data.drinking_window_status) {
       setScanDrinkingWindow({
@@ -166,9 +170,11 @@ export default function Wishlist() {
         country:       form.country.trim()       || null,
         grape_variety: form.grape_variety.trim() || null,
         colour:        form.colour,
-        notes:         form.notes.trim()         || null,
-        ratings:       form.ratings.trim()       || null,
-        cost:          form.cost !== '' ? Number(form.cost) : null,
+        notes:          form.notes.trim()         || null,
+        james_suckling: form.james_suckling !== '' ? Number(form.james_suckling) : null,
+        robert_parker:  form.robert_parker  !== '' ? Number(form.robert_parker)  : null,
+        wine_spectator: form.wine_spectator !== '' ? Number(form.wine_spectator) : null,
+        cost:           form.cost !== '' ? Number(form.cost) : null,
         source:        form.source.trim()        || null,
         drinking_window_status: scanDrinkingWindow?.status    ?? null,
         drinking_window_note:   scanDrinkingWindow?.note      ?? null,
@@ -392,9 +398,27 @@ export default function Wishlist() {
 
               {/* Critic ratings */}
               <FormField label="Critic Ratings">
-                <input name="ratings" value={form.ratings} onChange={handleChange}
-                  placeholder="e.g. JS: 94 | RP: 92 | WS: 91"
-                  className="input-field font-mono" />
+                <div className="flex gap-2">
+                  {[
+                    { name: 'james_suckling', label: 'JS' },
+                    { name: 'robert_parker',  label: 'RP' },
+                    { name: 'wine_spectator', label: 'WS' },
+                  ].map(({ name, label }) => (
+                    <div key={name} className="flex-1 space-y-1">
+                      <p className="text-xs text-neutral-500 text-center">{label}</p>
+                      <input
+                        name={name}
+                        type="number"
+                        min="50"
+                        max="100"
+                        value={form[name]}
+                        onChange={handleChange}
+                        placeholder="–"
+                        className="input-field text-center font-mono px-1"
+                      />
+                    </div>
+                  ))}
+                </div>
               </FormField>
 
               {/* Source */}

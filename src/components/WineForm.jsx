@@ -20,7 +20,9 @@ export const EMPTY_FORM = {
   colour: 'red',
   quantity: 1,
   cost: '',
-  ratings: '',
+  james_suckling: '',
+  robert_parker: '',
+  wine_spectator: '',
   notes: '',
 }
 
@@ -186,15 +188,29 @@ export default function WineForm({
         </div>
       </Field>
 
-      {/* Ratings */}
+      {/* Critic Ratings — three separate score boxes */}
       <Field label="Critic Ratings">
-        <input
-          name="ratings"
-          value={form.ratings}
-          onChange={onChange}
-          placeholder="e.g. JS: 94 | RP: 92 | WS: 91"
-          className="input-field font-mono"
-        />
+        <div className="flex gap-2">
+          {[
+            { name: 'james_suckling', label: 'JS' },
+            { name: 'robert_parker',  label: 'RP' },
+            { name: 'wine_spectator', label: 'WS' },
+          ].map(({ name, label }) => (
+            <div key={name} className="flex-1 space-y-1">
+              <p className="text-xs text-neutral-500 text-center">{label}</p>
+              <input
+                name={name}
+                type="number"
+                min="50"
+                max="100"
+                value={form[name]}
+                onChange={onChange}
+                placeholder="–"
+                className="input-field text-center font-mono px-1"
+              />
+            </div>
+          ))}
+        </div>
         {form.name && (
           <a
             href={`https://www.google.com/search?q=${encodeURIComponent(`${form.name}${form.vintage ? ' ' + form.vintage : ''} rating wine advocate spectator suckling`)}`}

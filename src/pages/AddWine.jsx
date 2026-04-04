@@ -66,16 +66,18 @@ export default function AddWine() {
   function applyApiData(data) {
     setForm((f) => ({
       ...f,
-      name:          data.name          != null ? String(data.name)          : f.name,
-      producer:      data.producer      != null ? String(data.producer)      : f.producer,
-      vintage:       data.vintage       != null ? String(data.vintage)       : f.vintage,
-      region:        data.region        != null ? String(data.region)        : f.region,
-      country:       data.country       != null ? String(data.country)       : f.country,
-      grape_variety: data.grape_variety != null ? String(data.grape_variety) : f.grape_variety,
-      colour:        data.colour        != null ? data.colour                : f.colour,
-      notes:         data.notes         != null ? String(data.notes)         : f.notes,
-      cost:          data.cost          != null ? String(data.cost)          : f.cost,
-      ratings:       data.ratings       != null ? String(data.ratings)       : f.ratings,
+      name:           data.name          != null ? String(data.name)          : f.name,
+      producer:       data.producer      != null ? String(data.producer)      : f.producer,
+      vintage:        data.vintage       != null ? String(data.vintage)       : f.vintage,
+      region:         data.region        != null ? String(data.region)        : f.region,
+      country:        data.country       != null ? String(data.country)       : f.country,
+      grape_variety:  data.grape_variety != null ? String(data.grape_variety) : f.grape_variety,
+      colour:         data.colour        != null ? data.colour                : f.colour,
+      notes:          data.notes         != null ? String(data.notes)         : f.notes,
+      cost:           data.cost          != null ? String(data.cost)          : f.cost,
+      james_suckling: data.james_suckling != null ? String(data.james_suckling) : f.james_suckling,
+      robert_parker:  data.robert_parker  != null ? String(data.robert_parker)  : f.robert_parker,
+      wine_spectator: data.wine_spectator != null ? String(data.wine_spectator) : f.wine_spectator,
     }))
     if (data.drinking_window_status) {
       setScanDrinkingWindow({
@@ -145,7 +147,9 @@ export default function AddWine() {
         colour: form.colour,
         quantity: Number(form.quantity),
         cost: form.cost !== '' ? Number(form.cost) : null,
-        ratings: form.ratings.trim() || null,
+        james_suckling: form.james_suckling !== '' ? Number(form.james_suckling) : null,
+        robert_parker:  form.robert_parker  !== '' ? Number(form.robert_parker)  : null,
+        wine_spectator: form.wine_spectator !== '' ? Number(form.wine_spectator) : null,
         notes: form.notes.trim() || null,
       })
 
@@ -164,7 +168,9 @@ export default function AddWine() {
       setForm(EMPTY_FORM)
       setSavedWine(saved)
 
-      if (!saved.ratings) {
+      const hasRatings = saved.james_suckling != null || saved.robert_parker != null || saved.wine_spectator != null
+
+      if (!hasRatings) {
         // Background ratings fetch — does not block navigation
         setFetchingRatings(true)
         setFetchedRatings(null)
@@ -185,12 +191,20 @@ export default function AddWine() {
         })
           .then((r) => r.json())
           .then((data) => {
-            if (data.ratings) {
-              updateWine(saved.id, { ratings: data.ratings }).catch(() => {})
-              setFetchedRatings(data.ratings)
+            const update = {}
+            if (data.james_suckling != null) update.james_suckling = data.james_suckling
+            if (data.robert_parker  != null) update.robert_parker  = data.robert_parker
+            if (data.wine_spectator != null) update.wine_spectator = data.wine_spectator
+            if (Object.keys(update).length > 0) {
+              updateWine(saved.id, update).catch(() => {})
+              // Build display string for the post-save card
+              const parts = []
+              if ((data.james_suckling ?? 0) > 0) parts.push(`JS ${data.james_suckling}`)
+              if ((data.robert_parker  ?? 0) > 0) parts.push(`RP ${data.robert_parker}`)
+              if ((data.wine_spectator ?? 0) > 0) parts.push(`WS ${data.wine_spectator}`)
+              if (parts.length > 0) setFetchedRatings(parts.join(' · '))
             }
             setFetchingRatings(false)
-            // Short pause so the user sees the ratings before navigating
             setTimeout(goHome, 1500)
           })
           .catch(() => {

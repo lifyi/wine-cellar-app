@@ -52,11 +52,15 @@ export default function WineCard({ wine }) {
       </div>
 
       {/* Critic ratings */}
-      {wine.ratings && (
-        <p className={`text-xs font-mono tracking-wide ${wine.ratings === 'N/A' ? 'text-neutral-700' : 'text-neutral-400'}`}>
-          {wine.ratings}
-        </p>
-      )}
+      {(() => {
+        const parts = []
+        if (wine.james_suckling > 0) parts.push(`JS ${wine.james_suckling}`)
+        if (wine.robert_parker  > 0) parts.push(`RP ${wine.robert_parker}`)
+        if (wine.wine_spectator > 0) parts.push(`WS ${wine.wine_spectator}`)
+        return parts.length > 0 ? (
+          <p className="text-xs font-mono text-neutral-400 tracking-wide">{parts.join(' · ')}</p>
+        ) : null
+      })()}
 
       {/* Notes */}
       {wine.notes && (

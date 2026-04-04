@@ -41,8 +41,10 @@ export default function Inventory() {
     return matchesSearch && matchesColour
   })
 
-  // Wines that don't yet have ratings
-  const missingRatings = wines.filter((w) => !w.ratings?.trim())
+  // Wines where at least one critic field has never been attempted (null = not yet tried)
+  const missingRatings = wines.filter(
+    (w) => w.james_suckling === null || w.robert_parker === null || w.wine_spectator === null
+  )
 
   async function handleDrinkOne(wine, note) {
     setModalWine(null)
@@ -89,11 +91,15 @@ export default function Inventory() {
           body: JSON.stringify({ name: wine.name, vintage: wine.vintage ?? null }),
         })
         const data = await res.json()
-        // Save whatever was found, or "N/A" so this wine is skipped on future refreshes
-        const ratingsValue = data.ratings || 'N/A'
-        await updateWine(wine.id, { ratings: ratingsValue })
+        // Save each score, or -1 for critics not found (so this wine is skipped next refresh)
+        const update = {
+          james_suckling: data.james_suckling ?? -1,
+          robert_parker:  data.robert_parker  ?? -1,
+          wine_spectator: data.wine_spectator ?? -1,
+        }
+        await updateWine(wine.id, update)
         setWines((prev) =>
-          prev.map((w) => (w.id === wine.id ? { ...w, ratings: ratingsValue } : w))
+          prev.map((w) => (w.id === wine.id ? { ...w, ...update } : w))
         )
       } catch {
         // skip failed wines, continue with the rest
@@ -284,11 +290,15 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
         {wine.drinking_window_note && (
           <p className="text-xs text-neutral-600 truncate">{wine.drinking_window_note}</p>
         )}
-        {wine.ratings && (
-          <p className={`text-xs font-mono truncate ${wine.ratings === 'N/A' ? 'text-neutral-700' : 'text-neutral-500'}`}>
-            {wine.ratings}
-          </p>
-        )}
+        {(() => {
+          const parts = []
+          if (wine.james_suckling > 0) parts.push(`JS ${wine.james_suckling}`)
+          if (wine.robert_parker  > 0) parts.push(`RP ${wine.robert_parker}`)
+          if (wine.wine_spectator > 0) parts.push(`WS ${wine.wine_spectator}`)
+          return parts.length > 0 ? (
+            <p className="text-xs font-mono text-neutral-500 truncate">{parts.join(' · ')}</p>
+          ) : null
+        })()}
       </div>
 
       {/* Quantity + actions */}
