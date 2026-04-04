@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ColourBadge, { COLOUR_STYLES } from '../components/ColourBadge'
 import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
+import DrinkConfirmModal from '../components/DrinkConfirmModal'
 import { getWines, drinkOne, deleteWine } from '../lib/wines'
 
 const COLOURS = ['all', 'red', 'white', 'rosé', 'sparkling', 'dessert']
@@ -14,6 +15,7 @@ export default function Inventory() {
   const [colourFilter, setColourFilter] = useState('all')
   const [pendingDrink, setPendingDrink] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [modalWine, setModalWine] = useState(null)
 
   useEffect(() => {
     getWines()
@@ -36,10 +38,11 @@ export default function Inventory() {
     return matchesSearch && matchesColour
   })
 
-  async function handleDrinkOne(wine) {
+  async function handleDrinkOne(wine, note) {
+    setModalWine(null)
     setPendingDrink(wine.id)
     try {
-      const updated = await drinkOne(wine)
+      const updated = await drinkOne(wine, note)
       setWines((prev) =>
         updated
           ? prev.map((w) => (w.id === wine.id ? updated : w))
@@ -153,12 +156,20 @@ export default function Inventory() {
               wine={wine}
               drinkPending={pendingDrink === wine.id}
               deletePending={pendingDelete === wine.id}
-              onDrink={() => handleDrinkOne(wine)}
+              onDrink={() => setModalWine(wine)}
               onDelete={() => handleDelete(wine.id)}
             />
 
           ))}
         </div>
+      )}
+      {/* Drink confirm modal */}
+      {modalWine && (
+        <DrinkConfirmModal
+          wine={modalWine}
+          onConfirm={(note) => handleDrinkOne(modalWine, note)}
+          onCancel={() => setModalWine(null)}
+        />
       )}
     </div>
   )
@@ -181,7 +192,7 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
           )}
           <ColourBadge colour={wine.colour} />
           {wine.cost != null && (
-            <span className="text-xs text-neutral-500">${Number(wine.cost).toFixed(2)}</span>
+            <span className="text-xs text-neutral-500">S${Number(wine.cost).toFixed(2)}</span>
           )}
           <DrinkingWindowBadge status={wine.drinking_window_status} />
         </div>

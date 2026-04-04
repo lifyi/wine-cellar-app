@@ -43,7 +43,7 @@ export default function WineCard({ wine }) {
           <Detail label="Grape" value={wine.grape_variety} />
         )}
         {wine.cost != null && (
-          <Detail label="Cost" value={`$${Number(wine.cost).toFixed(2)}`} />
+          <Detail label="Cost" value={`S$${Number(wine.cost).toFixed(2)}`} />
         )}
       </div>
 

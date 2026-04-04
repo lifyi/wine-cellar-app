@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import WineCard from '../components/WineCard'
+import DrinkConfirmModal from '../components/DrinkConfirmModal'
 import { getWines, drinkOne } from '../lib/wines'
 
 export default function Pair() {
@@ -11,6 +12,7 @@ export default function Pair() {
   const [wineMap, setWineMap] = useState({})
   const [pendingDrink, setPendingDrink] = useState(null)
   const [drankIds, setDrankIds] = useState(new Set())
+  const [modalWine, setModalWine] = useState(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -48,10 +50,11 @@ export default function Pair() {
     }
   }
 
-  async function handleDrink(wine) {
+  async function handleDrink(wine, note) {
+    setModalWine(null)
     setPendingDrink(wine.id)
     try {
-      const updated = await drinkOne(wine)
+      const updated = await drinkOne(wine, note)
       setWineMap((prev) => ({
         ...prev,
         [wine.id]: updated ?? { ...wine, quantity: 0 },
@@ -179,7 +182,7 @@ export default function Pair() {
                       <p className="text-center text-sm text-neutral-600 py-1">No bottles left in cellar</p>
                     ) : (
                       <button
-                        onClick={() => handleDrink(wine)}
+                        onClick={() => setModalWine(wine)}
                         disabled={!!pendingDrink}
                         className={`w-full flex items-center justify-center gap-2 ${drank ? 'btn-secondary' : 'btn-primary'}`}
                       >
@@ -214,6 +217,15 @@ export default function Pair() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Drink confirm modal */}
+      {modalWine && (
+        <DrinkConfirmModal
+          wine={modalWine}
+          onConfirm={(note) => handleDrink(modalWine, note)}
+          onCancel={() => setModalWine(null)}
+        />
       )}
     </div>
   )

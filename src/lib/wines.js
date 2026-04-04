@@ -45,18 +45,20 @@ export async function updateWine(id, wine) {
 }
 
 // ── Reduce quantity by 1 and log to drinking history ──────────────────────
-export async function drinkOne(wine) {
+export async function drinkOne(wine, note = null) {
   // Log the drink first (snapshot wine details so history survives deletions)
   const { error: histErr } = await supabase.from('drinking_history').insert([{
     wine_id:      wine.id,
     wine_name:    wine.name,
-    producer:     wine.producer     || null,
-    vintage:      wine.vintage      || null,
-    colour:       wine.colour       || null,
-    region:       wine.region       || null,
-    country:      wine.country      || null,
+    producer:     wine.producer      || null,
+    vintage:      wine.vintage       || null,
+    colour:       wine.colour        || null,
+    region:       wine.region        || null,
+    country:      wine.country       || null,
     grape_variety: wine.grape_variety || null,
     quantity:     1,
+    note:         note               || null,
+    cost:         wine.cost          ?? null,
   }])
   if (histErr) throw histErr
 

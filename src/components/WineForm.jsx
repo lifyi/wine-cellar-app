@@ -138,9 +138,9 @@ export default function WineForm({
             className="input-field"
           />
         </Field>
-        <Field label="Cost (USD)">
+        <Field label="Cost (SGD)">
           <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">$</span>
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">S$</span>
             <input
               name="cost"
               type="number"
@@ -149,7 +149,7 @@ export default function WineForm({
               value={form.cost}
               onChange={onChange}
               placeholder="0.00"
-              className="input-field pl-7"
+              className="input-field pl-9"
             />
           </div>
         </Field>
