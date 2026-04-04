@@ -1,6 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const SYSTEM_PROMPT = `You are a wine expert estimating drinking windows. For each wine provided, estimate its ideal drinking window based on the region, grape variety, colour, vintage, and any tasting notes. Classify as: drink_now (at peak or window closing soon — drink within 6 months), ready (within ideal window, no urgency), hold (too young, will improve with more ageing), past_peak (likely declining based on typical ageing potential for this style). Provide a short note explaining your reasoning. Be realistic — most everyday whites and rosés should be drunk young, simple reds within 3-5 years, only serious ageworthy reds and top dessert wines benefit from long ageing. The current year is 2026. Respond only in JSON: { "wines": [{ "wine_id": "", "status": "", "note": "" }] }`
+function buildSystemPrompt() {
+  const year = new Date().getFullYear()
+  return `You are a wine expert estimating drinking windows. For each wine provided, estimate its ideal drinking window based on the region, grape variety, colour, vintage, and any tasting notes. Classify as: drink_now (at peak or window closing soon — drink within 6 months), ready (within ideal window, no urgency), hold (too young, will improve with more ageing), past_peak (likely declining based on typical ageing potential for this style). Provide a short note explaining your reasoning. Be realistic — most everyday whites and rosés should be drunk young, simple reds within 3-5 years, only serious ageworthy reds and top dessert wines benefit from long ageing. The current year is ${year}. Respond only in JSON: { "wines": [{ "wine_id": "", "status": "", "note": "" }] }`
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -35,7 +38,7 @@ export default async function handler(req, res) {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(),
       messages: [
         {
           role: 'user',
