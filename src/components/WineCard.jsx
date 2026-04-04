@@ -51,6 +51,11 @@ export default function WineCard({ wine }) {
         )}
       </div>
 
+      {/* Critic ratings */}
+      {wine.ratings && (
+        <p className="text-xs font-mono text-neutral-400 tracking-wide">{wine.ratings}</p>
+      )}
+
       {/* Notes */}
       {wine.notes && (
         <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>

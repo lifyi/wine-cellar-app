@@ -208,6 +208,9 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
         {wine.drinking_window_note && (
           <p className="text-xs text-neutral-600 truncate">{wine.drinking_window_note}</p>
         )}
+        {wine.ratings && (
+          <p className="text-xs font-mono text-neutral-500 truncate">{wine.ratings}</p>
+        )}
       </div>
 
       {/* Quantity + actions */}

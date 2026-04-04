@@ -91,6 +91,7 @@ export default function AddWine() {
         colour:        data.colour        != null ? data.colour                : f.colour,
         notes:         data.notes         != null ? String(data.notes)         : f.notes,
         cost:          data.cost          != null ? String(data.cost)          : f.cost,
+        ratings:       data.ratings       != null ? String(data.ratings)       : f.ratings,
       }))
 
       // Store drinking window + metadata from scan
@@ -130,6 +131,7 @@ export default function AddWine() {
         colour: form.colour,
         quantity: Number(form.quantity),
         cost: form.cost !== '' ? Number(form.cost) : null,
+        ratings: form.ratings.trim() || null,
         notes: form.notes.trim() || null,
       })
       // Use drinking window from scan if we already have one; otherwise estimate in background

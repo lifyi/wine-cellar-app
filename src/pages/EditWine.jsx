@@ -25,6 +25,7 @@ export default function EditWine() {
           colour:       wine.colour ?? 'red',
           quantity:     wine.quantity ?? 1,
           cost:         wine.cost ?? '',
+          ratings:      wine.ratings ?? '',
           notes:        wine.notes ?? '',
         })
       })
@@ -52,6 +53,7 @@ export default function EditWine() {
         colour: form.colour,
         quantity: Number(form.quantity),
         cost: form.cost !== '' ? Number(form.cost) : null,
+        ratings: form.ratings.trim() || null,
         notes: form.notes.trim() || null,
       })
       setSuccess(true)

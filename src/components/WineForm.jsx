@@ -20,6 +20,7 @@ export const EMPTY_FORM = {
   colour: 'red',
   quantity: 1,
   cost: '',
+  ratings: '',
   notes: '',
 }
 
@@ -183,6 +184,27 @@ export default function WineForm({
             </button>
           ))}
         </div>
+      </Field>
+
+      {/* Ratings */}
+      <Field label="Critic Ratings">
+        <input
+          name="ratings"
+          value={form.ratings}
+          onChange={onChange}
+          placeholder="e.g. JS: 94 | RP: 92 | WS: 91"
+          className="input-field font-mono"
+        />
+        {form.name && (
+          <a
+            href={`https://www.google.com/search?q=${encodeURIComponent(`${form.name}${form.vintage ? ' ' + form.vintage : ''} rating wine advocate spectator suckling`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-wine-400 hover:text-wine-300 transition-colors duration-100"
+          >
+            Check ratings →
+          </a>
+        )}
       </Field>
 
       {/* Notes */}
