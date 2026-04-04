@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import ColourBadge, { COLOUR_STYLES } from '../components/ColourBadge'
+import { COLOUR_STYLES } from '../components/ColourBadge'
 import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
 import { getWines, drinkOne, deleteWine } from '../lib/wines'
@@ -229,14 +229,27 @@ export default function Inventory() {
 
       {/* Loading skeleton */}
       {loading && (
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="card animate-pulse flex items-center gap-3">
-              <div className="flex-1 space-y-2">
-                <div className="h-3.5 bg-neutral-800 rounded w-3/4" />
-                <div className="h-3 bg-neutral-800 rounded w-1/2" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card animate-pulse space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-neutral-800 rounded w-2/3" />
+                  <div className="h-3 bg-neutral-800 rounded w-1/3" />
+                </div>
+                <div className="h-5 w-16 bg-neutral-800 rounded-md" />
               </div>
-              <div className="h-8 w-20 bg-neutral-800 rounded-lg" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-3 bg-neutral-800 rounded" />
+                <div className="h-3 bg-neutral-800 rounded" />
+                <div className="h-3 bg-neutral-800 rounded" />
+                <div className="h-3 bg-neutral-800 rounded" />
+              </div>
+              <div className="h-3 bg-neutral-800 rounded w-1/2" />
+              <div className="flex items-center justify-between pt-1 border-t border-neutral-800">
+                <div className="h-4 w-20 bg-neutral-800 rounded" />
+                <div className="h-8 w-28 bg-neutral-800 rounded-lg" />
+              </div>
             </div>
           ))}
         </div>
@@ -259,9 +272,9 @@ export default function Inventory() {
         </p>
       )}
 
-      {/* Table */}
+      {/* Cards */}
       {!loading && filtered.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map((wine) => (
             <InventoryRow
               key={wine.id}
@@ -288,105 +301,140 @@ export default function Inventory() {
 }
 
 function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) {
+  const style = COLOUR_STYLES[wine.colour] ?? COLOUR_STYLES.red
+
+  const ratingParts = []
+  if (wine.james_suckling > 0) ratingParts.push(`JS ${wine.james_suckling}`)
+  if (wine.robert_parker  > 0) ratingParts.push(`RP ${wine.robert_parker}`)
+  if (wine.wine_spectator > 0) ratingParts.push(`WS ${wine.wine_spectator}`)
+
   return (
-    <div className="card flex items-center gap-3">
-      {/* Info */}
-      <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-neutral-100 truncate">{wine.name}</span>
-          {wine.vintage && (
-            <span className="text-xs text-neutral-500 flex-shrink-0">{wine.vintage}</span>
+    <div className="card space-y-3">
+
+      {/* Header — name + producer left, colour + window badges right */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-neutral-100 leading-snug">{wine.name}</h3>
+          {wine.producer && (
+            <p className="text-sm text-neutral-400">{wine.producer}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {wine.producer && (
-            <span className="text-xs text-neutral-500 truncate">{wine.producer}</span>
-          )}
-          <ColourBadge colour={wine.colour} />
-          {wine.cost != null && (
-            <span className="text-xs text-neutral-500">S${Number(wine.cost).toFixed(2)}</span>
-          )}
+        <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
+          <span className={`colour-badge ${style.badge}`}>
+            <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+            {style.label}
+          </span>
           <DrinkingWindowBadge
             status={wine.drinking_window_status}
             startYear={wine.drinking_window_start}
             endYear={wine.drinking_window_end}
           />
         </div>
-        {(wine.region || wine.grape_variety) && (
-          <p className="text-xs text-neutral-600 truncate">
-            {[wine.grape_variety, wine.region, wine.country].filter(Boolean).join(' · ')}
-          </p>
-        )}
-        {wine.drinking_window_note && (
-          <p className="text-xs text-neutral-600 truncate">{wine.drinking_window_note}</p>
-        )}
-        {(() => {
-          const parts = []
-          if (wine.james_suckling > 0) parts.push(`JS ${wine.james_suckling}`)
-          if (wine.robert_parker  > 0) parts.push(`RP ${wine.robert_parker}`)
-          if (wine.wine_spectator > 0) parts.push(`WS ${wine.wine_spectator}`)
-          return parts.length > 0 ? (
-            <p className="text-xs font-mono text-neutral-500 truncate">{parts.join(' · ')}</p>
-          ) : null
-        })()}
       </div>
 
-      {/* Quantity + actions */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-lg font-bold text-neutral-100 w-7 text-center">
-          {wine.quantity}
-        </span>
+      {/* Details grid */}
+      {(wine.vintage || wine.region || wine.country || wine.grape_variety || wine.cost != null) && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+          {wine.vintage      && <Detail label="Vintage" value={wine.vintage} />}
+          {wine.region       && <Detail label="Region"  value={wine.region} />}
+          {wine.country      && <Detail label="Country" value={wine.country} />}
+          {wine.grape_variety && <Detail label="Grape"  value={wine.grape_variety} />}
+          {wine.cost != null  && <Detail label="Cost"   value={`S$${Number(wine.cost).toFixed(2)}`} />}
+        </div>
+      )}
 
-        {/* Edit */}
-        <Link
-          to={`/edit/${wine.id}`}
-          title="Edit wine"
-          className="p-2 text-neutral-500 hover:text-neutral-100 transition-colors duration-100 rounded-lg hover:bg-neutral-800"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      {/* Critic ratings */}
+      {ratingParts.length > 0 && (
+        <p className="text-xs font-mono text-neutral-400 tracking-wide">{ratingParts.join(' · ')}</p>
+      )}
+
+      {/* Drinking window note */}
+      {wine.drinking_window_note && (
+        <p className="text-xs text-neutral-500 leading-relaxed">{wine.drinking_window_note}</p>
+      )}
+
+      {/* Notes — full text, no truncation */}
+      {wine.notes && (
+        <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
+      )}
+
+      {/* Footer: quantity left, actions right */}
+      <div className="flex items-center justify-between pt-1 border-t border-neutral-800">
+
+        {/* Quantity */}
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 22h8M12 11v11M7 3h10l1 7a5 5 0 01-5 5h0a5 5 0 01-5-5l1-7z" />
           </svg>
-        </Link>
+          <span className="text-sm text-neutral-400">
+            <span className="text-neutral-100 font-semibold">{wine.quantity}</span>{' '}
+            {wine.quantity === 1 ? 'bottle' : 'bottles'}
+          </span>
+        </div>
 
-        {/* Drink one */}
-        <button
-          onClick={onDrink}
-          disabled={drinkPending || deletePending}
-          title="Drink one bottle"
-          className="flex items-center gap-1.5 bg-wine-800 hover:bg-wine-700 active:bg-wine-900 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors duration-100"
-        >
-          {drinkPending ? (
-            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-          ) : (
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" />
-            </svg>
-          )}
-          Drink
-        </button>
+        {/* Actions */}
+        <div className="flex items-center gap-1">
 
-        {/* Delete */}
-        <button
-          onClick={onDelete}
-          disabled={drinkPending || deletePending}
-          title="Remove wine"
-          className="p-2 text-neutral-600 hover:text-red-400 disabled:opacity-50 transition-colors duration-100 rounded-lg hover:bg-neutral-800"
-        >
-          {deletePending ? (
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-          ) : (
+          {/* Edit */}
+          <Link
+            to={`/edit/${wine.id}`}
+            title="Edit wine"
+            className="p-2 text-neutral-500 hover:text-neutral-100 transition-colors duration-100 rounded-lg hover:bg-neutral-800"
+          >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-          )}
-        </button>
+          </Link>
+
+          {/* Drink one */}
+          <button
+            onClick={onDrink}
+            disabled={drinkPending || deletePending}
+            title="Drink one bottle"
+            className="flex items-center gap-1.5 bg-wine-800 hover:bg-wine-700 active:bg-wine-900 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors duration-100"
+          >
+            {drinkPending ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" />
+              </svg>
+            )}
+            Drink
+          </button>
+
+          {/* Delete */}
+          <button
+            onClick={onDelete}
+            disabled={drinkPending || deletePending}
+            title="Remove wine"
+            className="p-2 text-neutral-600 hover:text-red-400 disabled:opacity-50 transition-colors duration-100 rounded-lg hover:bg-neutral-800"
+          >
+            {deletePending ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
+    </div>
+  )
+}
+
+function Detail({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-neutral-500 text-xs uppercase tracking-wide">{label}</p>
+      <p className="text-neutral-200 truncate">{value}</p>
     </div>
   )
 }
