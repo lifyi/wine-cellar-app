@@ -28,15 +28,30 @@ export const WINDOW_STYLES = {
 
 export const WINDOW_ORDER = ['drink_now', 'ready', 'hold', 'past_peak']
 
-export default function DrinkingWindowBadge({ status }) {
+// Format start/end years into a compact range string.
+// If start is current year or earlier → "Now"; future start stays as a year.
+export function formatWindowRange(startYear, endYear) {
+  if (!startYear && !endYear) return null
+  const currentYear = new Date().getFullYear()
+  const start = startYear ? (startYear <= currentYear ? 'Now' : String(startYear)) : null
+  const end   = endYear   ? String(endYear) : null
+  if (start && end) return `${start}–${end}`
+  if (end)          return `–${end}`
+  if (start)        return `${start}–`
+  return null
+}
+
+export default function DrinkingWindowBadge({ status, startYear, endYear }) {
   if (!status) return null
   const style = WINDOW_STYLES[status]
   if (!style) return null
+  const range = formatWindowRange(startYear, endYear)
 
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${style.badge}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dot}`} />
       {style.label}
+      {range && <span className="opacity-75">({range})</span>}
     </span>
   )
 }

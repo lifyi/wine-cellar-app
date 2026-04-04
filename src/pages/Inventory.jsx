@@ -194,7 +194,11 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
           {wine.cost != null && (
             <span className="text-xs text-neutral-500">S${Number(wine.cost).toFixed(2)}</span>
           )}
-          <DrinkingWindowBadge status={wine.drinking_window_status} />
+          <DrinkingWindowBadge
+            status={wine.drinking_window_status}
+            startYear={wine.drinking_window_start}
+            endYear={wine.drinking_window_end}
+          />
         </div>
         {(wine.region || wine.grape_variety) && (
           <p className="text-xs text-neutral-600 truncate">

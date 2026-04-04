@@ -24,7 +24,11 @@ export default function WineCard({ wine }) {
             <span className={`w-2 h-2 rounded-full ${style.dot}`} />
             {style.label}
           </span>
-          <DrinkingWindowBadge status={wine.drinking_window_status} />
+          <DrinkingWindowBadge
+            status={wine.drinking_window_status}
+            startYear={wine.drinking_window_start}
+            endYear={wine.drinking_window_end}
+          />
         </div>
       </div>
 

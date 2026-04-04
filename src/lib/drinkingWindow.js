@@ -16,10 +16,12 @@ export async function estimateAndSaveWindows(wines) {
 
   // Save each result back to Supabase in parallel
   await Promise.all(
-    results.map(({ wine_id, status, note }) =>
+    results.map(({ wine_id, status, note, start_year, end_year }) =>
       updateWine(wine_id, {
         drinking_window_status: status,
-        drinking_window_note: note,
+        drinking_window_note:   note,
+        drinking_window_start:  start_year ?? null,
+        drinking_window_end:    end_year   ?? null,
       })
     )
   )
@@ -41,7 +43,9 @@ export function estimateInBackground(wine) {
       if (result) {
         return updateWine(wine.id, {
           drinking_window_status: result.status,
-          drinking_window_note: result.note,
+          drinking_window_note:   result.note,
+          drinking_window_start:  result.start_year ?? null,
+          drinking_window_end:    result.end_year   ?? null,
         })
       }
     })

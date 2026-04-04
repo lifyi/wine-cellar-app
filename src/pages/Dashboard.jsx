@@ -45,7 +45,7 @@ export default function Dashboard() {
         prev.map((wine) => {
           const r = results.find((x) => x.wine_id === wine.id)
           return r
-            ? { ...wine, drinking_window_status: r.status, drinking_window_note: r.note }
+            ? { ...wine, drinking_window_status: r.status, drinking_window_note: r.note, drinking_window_start: r.start_year ?? null, drinking_window_end: r.end_year ?? null }
             : wine
         })
       )
