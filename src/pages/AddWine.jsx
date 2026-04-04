@@ -35,6 +35,7 @@ async function compressImage(file) {
 export default function AddWine() {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
+  const uploadInputRef = useRef(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [scanning, setScanning] = useState(false)
@@ -132,8 +133,8 @@ export default function AddWine() {
         </div>
 
         <div>
-          <p className="font-medium text-neutral-200 text-sm">Scan a wine label</p>
-          <p className="text-xs text-neutral-500 mt-0.5">Take a photo — Claude will fill in the details automatically</p>
+          <p className="font-medium text-neutral-200 text-sm">Scan a wine label or image</p>
+          <p className="text-xs text-neutral-500 mt-0.5">Labels, menus, screenshots, tasting notes — Claude will extract the details</p>
         </div>
 
         {/* Success message */}
@@ -142,7 +143,7 @@ export default function AddWine() {
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Label scanned — check the fields below and correct anything
+            Scanned — check the fields below and correct anything
           </div>
         )}
 
@@ -151,35 +152,68 @@ export default function AddWine() {
           <p className="text-xs text-red-400">{scanError}</p>
         )}
 
-        {/* Camera trigger */}
-        <label className={`btn-primary text-sm cursor-pointer inline-flex items-center gap-2 ${scanning ? 'opacity-60 pointer-events-none' : ''}`}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            onChange={handleScan}
-            disabled={scanning}
-          />
-          {scanning ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              Scanning…
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {scanned ? 'Scan Again' : 'Open Camera'}
-            </>
-          )}
-        </label>
+        {/* Two buttons side by side */}
+        <div className="flex gap-2 w-full">
+
+          {/* Camera */}
+          <label className={`btn-primary text-sm cursor-pointer inline-flex flex-1 justify-center items-center gap-2 ${scanning ? 'opacity-60 pointer-events-none' : ''}`}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={handleScan}
+              disabled={scanning}
+            />
+            {scanning ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Scanning…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {scanned ? 'Scan Again' : 'Open Camera'}
+              </>
+            )}
+          </label>
+
+          {/* Photo library */}
+          <label className={`btn-secondary text-sm cursor-pointer inline-flex flex-1 justify-center items-center gap-2 ${scanning ? 'opacity-60 pointer-events-none' : ''}`}>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={handleScan}
+              disabled={scanning}
+            />
+            {scanning ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Scanning…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Upload Photo
+              </>
+            )}
+          </label>
+
+        </div>
       </div>
 
       {/* Divider */}
