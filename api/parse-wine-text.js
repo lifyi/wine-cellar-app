@@ -82,7 +82,7 @@ Return ONLY this JSON (use null for anything you cannot determine):
 }
 
 For cost, use the midpoint of price_range_sgd rounded to the nearest dollar.
-For ratings, only include scores you are confident about; use null if unsure.
+For ratings: actively search your training knowledge for Robert Parker/Wine Advocate (RP), James Suckling (JS), and Wine Spectator (WS) scores for this specific wine and vintage. This field should almost always be filled in for any named wine — a partial string like "JS: 94" is far better than null. Only omit a specific critic if you genuinely have no knowledge of their score for this wine. Only use null if you have no score knowledge at all for any of the three critics. Format: "JS: 94 | RP: 92 | WS: 91".
 Return only the JSON, no explanation.
 
 Text to analyse:

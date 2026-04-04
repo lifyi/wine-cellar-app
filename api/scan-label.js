@@ -66,7 +66,7 @@ Return ONLY this JSON object (use null for anything you truly cannot determine):
 
 For cost, use the midpoint of price_range_sgd rounded to the nearest dollar.
 For inferred, list only field names NOT visible on the label (e.g. ["grape_variety", "region", "country"]).
-For ratings: only include scores from James Suckling (JS), Robert Parker/Wine Advocate (RP), and Wine Spectator (WS) that you are reasonably confident about for this specific wine and vintage. Format as "JS: 94 | RP: 92 | WS: 91", omitting any reviewer you are not confident about. If you have no confident ratings at all, use null. Do not guess — a missing score is better than a wrong one.
+For ratings: actively search your training knowledge for Robert Parker/Wine Advocate (RP), James Suckling (JS), and Wine Spectator (WS) scores for this specific wine and vintage. This field should almost always be filled in for any named wine — a partial string like "JS: 94" is far better than null. Only omit a specific critic if you genuinely have no knowledge of their score for this wine. Only use null if you have no score knowledge at all for any of the three critics. Format: "JS: 94 | RP: 92 | WS: 91".
 Return only the JSON, no explanation.`,
             },
           ],
