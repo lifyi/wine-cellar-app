@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import WishlistCard from '../components/WishlistCard'
 import { getWishlist, addToWishlist, removeFromWishlist, moveToWines } from '../lib/wishlist'
+import { getWines, getDrinkingHistory } from '../lib/wines'
 import { estimateInBackground } from '../lib/drinkingWindow'
+import { buildTasteProfile } from '../lib/tasteProfile'
 
 // ── Colour picker data ──────────────────────────────────────────────────────
 const COLOURS = ['red', 'white', 'rosé', 'sparkling', 'dessert']
@@ -58,6 +60,11 @@ export default function Wishlist() {
   const [refreshing, setRefreshing]         = useState(false)
   const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
   const [refreshDone, setRefreshDone]       = useState(false)
+
+  // Buy suggestions state
+  const [suggesting, setSuggesting]     = useState(false)
+  const [suggestions, setSuggestions]   = useState(null)
+  const [suggestError, setSuggestError] = useState(null)
 
   // Add-form state
   const [showForm, setShowForm]   = useState(false)
@@ -282,6 +289,32 @@ export default function Wishlist() {
     setRefreshDone(true)
     setRefreshProgress(null)
     setTimeout(() => setRefreshDone(false), 4000)
+  }
+
+  // ── Buy suggestions ───────────────────────────────────────────────────────
+  async function handleSuggest() {
+    if (suggesting) return
+    setSuggesting(true)
+    setSuggestError(null)
+    setSuggestions(null)
+    try {
+      const [wines, history] = await Promise.all([getWines(), getDrinkingHistory().catch(() => [])])
+      const tasteProfile = buildTasteProfile(history)
+      const currentWineNames = wines.map((w) => w.name)
+      const wishlistWineNames = items.map((w) => w.name)
+      const res = await fetch('/api/suggest-wines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasteProfile, currentWines: currentWineNames, wishlistWines: wishlistWineNames }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not generate suggestions.')
+      setSuggestions(data.suggestions ?? [])
+    } catch (err) {
+      setSuggestError(err.message)
+    } finally {
+      setSuggesting(false)
+    }
   }
 
   // ── Move to cellar ────────────────────────────────────────────────────────
@@ -585,6 +618,93 @@ export default function Wishlist() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
           Ratings updated — wines already rated were left unchanged
+        </div>
+      )}
+
+      {/* ── Suggest what to buy ──────────────────────────────────────────── */}
+      {!loading && (
+        <button
+          onClick={handleSuggest}
+          disabled={suggesting}
+          className="w-full flex items-center justify-center gap-2 btn-secondary text-sm disabled:opacity-60"
+        >
+          {suggesting ? (
+            <>
+              <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Finding recommendations…
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              Suggest what to buy
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Suggest error */}
+      {suggestError && (
+        <div className="card border-red-900 bg-red-950/30 text-red-300 text-sm">
+          {suggestError}
+        </div>
+      )}
+
+      {/* Suggestion results */}
+      {suggestions !== null && (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+            Recommended for you
+          </p>
+          {suggestions.length === 0 ? (
+            <div className="card text-center text-sm text-neutral-500 py-6">
+              No suggestions generated — try again after drinking more wines!
+            </div>
+          ) : (
+            suggestions.map((s, i) => (
+              <div key={i} className="card space-y-2.5 border-wine-900/40 bg-wine-950/10">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-neutral-100 leading-snug">{s.name}</p>
+                    {s.producer && (
+                      <p className="text-xs text-neutral-400 mt-0.5">{s.producer}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-medium text-wine-300">
+                      S${s.price_sgd_min}–{s.price_sgd_max}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {s.grape_variety && (
+                    <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-full">
+                      {s.grape_variety}
+                    </span>
+                  )}
+                  {s.region && (
+                    <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-full">
+                      {s.region}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-neutral-300 leading-relaxed">{s.why}</p>
+                {s.where_to_buy && (
+                  <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {s.where_to_buy}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
 

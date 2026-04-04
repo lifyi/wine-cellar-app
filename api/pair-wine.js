@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
   }
 
-  const { meal, wines, wishlist } = req.body ?? {}
+  const { meal, occasion, wines, wishlist } = req.body ?? {}
 
   if (!meal?.trim()) {
     return res.status(400).json({ error: 'Please describe what you are eating.' })
@@ -52,6 +52,7 @@ export default async function handler(req, res) {
 
     const userMessage = [
       `Meal: ${meal.trim()}`,
+      occasion ? `\nOccasion: ${occasion}` : '',
       `\nInventory (${inventorySummary.length} wines):\n${JSON.stringify(inventorySummary, null, 2)}`,
       wishlistSummary.length > 0
         ? `\nWishlist (${wishlistSummary.length} wines — not in cellar yet):\n${JSON.stringify(wishlistSummary, null, 2)}`

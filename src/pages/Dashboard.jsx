@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import WineCard from '../components/WineCard'
 import { WINDOW_STYLES, WINDOW_ORDER } from '../components/DrinkingWindowBadge'
-import { getWines, getDrinkingHistoryCount } from '../lib/wines'
+import { getWines, getDrinkingHistory } from '../lib/wines'
+import { getWishlist } from '../lib/wishlist'
 import { estimateAndSaveWindows } from '../lib/drinkingWindow'
+import { buildTasteProfile, buildSommelierNotes } from '../lib/tasteProfile'
 
 // Colour dot + bar fill colours (matches WineCard palette)
 const COLOUR_ORDER = ['red', 'white', 'rosé', 'sparkling', 'dessert']
@@ -16,73 +18,73 @@ const COLOUR_META = {
 }
 
 export default function Dashboard() {
-  const [wines, setWines] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [wines, setWines]           = useState([])
+  const [history, setHistory]       = useState([])
+  const [wishlistItems, setWishlistItems] = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
   const [windowFilter, setWindowFilter] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
   const [refreshError, setRefreshError] = useState(null)
-  const [drunkCount, setDrunkCount] = useState(0)
 
   useEffect(() => {
-    Promise.all([getWines(), getDrinkingHistoryCount()])
-      .then(([winesData, count]) => {
+    Promise.all([getWines(), getDrinkingHistory(), getWishlist().catch(() => [])])
+      .then(([winesData, historyData, wishlistData]) => {
         setWines(winesData)
-        setDrunkCount(count)
+        setHistory(historyData)
+        setWishlistItems(wishlistData)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
 
   // ── Derived stats ──────────────────────────────────────────────────────────
-  const currentYear = new Date().getFullYear()
+  const currentYear  = new Date().getFullYear()
   const totalBottles = wines.reduce((sum, w) => sum + (w.quantity ?? 0), 0)
+  const drunkCount   = history.reduce((sum, h) => sum + (h.quantity ?? 1), 0)
 
-  // Expiring soon: drink_now OR end year has passed
   const expiringSoon = wines.filter(
     (w) =>
       w.drinking_window_status === 'drink_now' ||
       (w.drinking_window_end != null && w.drinking_window_end <= currentYear)
   )
 
-  // Collection value & avg price (weighted by quantity)
-  const totalValue = wines.reduce((sum, w) => sum + (w.cost ?? 0) * (w.quantity ?? 0), 0)
+  const totalValue    = wines.reduce((sum, w) => sum + (w.cost ?? 0) * (w.quantity ?? 0), 0)
   const winesWithCost = wines.filter((w) => w.cost != null)
   const bottlesWithCost = winesWithCost.reduce((sum, w) => sum + (w.quantity ?? 0), 0)
-  const avgPrice =
-    bottlesWithCost > 0
-      ? winesWithCost.reduce((sum, w) => sum + w.cost * (w.quantity ?? 0), 0) / bottlesWithCost
-      : null
+  const avgPrice = bottlesWithCost > 0
+    ? winesWithCost.reduce((sum, w) => sum + w.cost * (w.quantity ?? 0), 0) / bottlesWithCost
+    : null
 
-  // Colour breakdown (bottle counts)
   const colourBottles = COLOUR_ORDER.reduce((acc, c) => {
     acc[c] = wines.filter((w) => w.colour === c).reduce((sum, w) => sum + (w.quantity ?? 0), 0)
     return acc
   }, {})
 
-  // Top 3 countries by bottle count
   const countryMap = {}
   wines.forEach((w) => {
     if (w.country) countryMap[w.country] = (countryMap[w.country] ?? 0) + (w.quantity ?? 0)
   })
   const topCountries = Object.entries(countryMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
-  // Top 3 grape varieties by bottle count
   const grapeMap = {}
   wines.forEach((w) => {
     if (w.grape_variety) grapeMap[w.grape_variety] = (grapeMap[w.grape_variety] ?? 0) + (w.quantity ?? 0)
   })
   const topGrapes = Object.entries(grapeMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
-  // ── Drinking window filter state ──────────────────────────────────────────
+  // ── Taste profile + sommelier notes (pure computation, no API) ─────────────
+  const tasteProfile   = buildTasteProfile(history)
+  const sommelierNotes = buildSommelierNotes(wines, wishlistItems, tasteProfile)
+
+  // ── Drinking window filter ─────────────────────────────────────────────────
   const windowCounts = WINDOW_ORDER.reduce((acc, s) => {
     acc[s] = wines.filter((w) => w.drinking_window_status === s).length
     return acc
   }, {})
   const estimatedCount = WINDOW_ORDER.reduce((sum, s) => sum + windowCounts[s], 0)
 
-  // Apply filter (including custom 'expiring_soon' pseudo-filter)
   const filtered =
     windowFilter === 'all'
       ? wines
@@ -97,8 +99,6 @@ export default function Dashboard() {
     setRefreshError(null)
     setRefreshProgress({ done: 0, total: wines.length })
     try {
-      // Server writes to Supabase directly — we only need the returned data
-      // to update local React state. onProgress fires once per batch of 15.
       const results = await estimateAndSaveWindows(wines, (done, total) => {
         setRefreshProgress({ done, total })
       })
@@ -180,7 +180,6 @@ export default function Dashboard() {
         <div className="card space-y-4">
           <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Collection</p>
 
-          {/* Key numbers */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="text-xs text-neutral-500 mb-0.5">Cellar Value</p>
@@ -200,12 +199,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Colour breakdown */}
           {totalBottles > 0 && COLOUR_ORDER.some((c) => colourBottles[c] > 0) && (
             <div className="space-y-2 pt-1 border-t border-neutral-800">
               {COLOUR_ORDER.filter((c) => colourBottles[c] > 0).map((c) => {
                 const meta = COLOUR_META[c]
-                const pct = Math.round((colourBottles[c] / totalBottles) * 100)
+                const pct  = Math.round((colourBottles[c] / totalBottles) * 100)
                 return (
                   <div key={c} className="flex items-center gap-2">
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
@@ -220,7 +218,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Top countries + top grapes */}
           {(topCountries.length > 0 || topGrapes.length > 0) && (
             <div className="grid grid-cols-2 gap-4 pt-1 border-t border-neutral-800">
               {topCountries.length > 0 && (
@@ -250,11 +247,98 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Taste Profile ────────────────────────────────────────────────── */}
+      {!loading && tasteProfile && (
+        <div className="card space-y-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Taste Profile</p>
+            <p className="text-xs text-neutral-600">Based on {tasteProfile.totalDrunk} bottles drunk</p>
+          </div>
+
+          {/* Top grape varieties */}
+          {tasteProfile.topGrapes.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-neutral-500">Favourite Varieties</p>
+              {tasteProfile.topGrapes.map(({ name, count, pct }) => (
+                <div key={name} className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-400 w-28 truncate">{name}</span>
+                  <div className="flex-1 bg-neutral-800 rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full bg-wine-600" style={{ width: `${Math.max(pct, 4)}%` }} />
+                  </div>
+                  <span className="text-xs text-neutral-600 w-6 text-right">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Colour preferences */}
+          {tasteProfile.colourSplit.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-neutral-800">
+              <p className="text-xs text-neutral-500">Colour Preference</p>
+              {tasteProfile.colourSplit.map(({ colour, count, pct }) => {
+                const meta = COLOUR_META[colour]
+                return (
+                  <div key={colour} className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta?.dot ?? 'bg-neutral-600'}`} />
+                    <span className="text-xs text-neutral-500 w-14 capitalize">{colour}</span>
+                    <div className="flex-1 bg-neutral-800 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full ${meta?.bar ?? 'bg-neutral-600'}`}
+                        style={{ width: `${Math.max(pct, 4)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-neutral-600 w-6 text-right">{count}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Top countries drunk + avg spend */}
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-neutral-800">
+            {tasteProfile.topCountries.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-neutral-500">Top Countries</p>
+                {tasteProfile.topCountries.slice(0, 3).map(({ name, count }) => (
+                  <div key={name} className="flex items-baseline justify-between gap-1">
+                    <span className="text-xs text-neutral-400 truncate">{name}</span>
+                    <span className="text-xs text-neutral-600 flex-shrink-0">{count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tasteProfile.avgPrice != null && (
+              <div className="space-y-1">
+                <p className="text-xs text-neutral-500">Avg Spend</p>
+                <p className="text-lg font-bold text-neutral-100">S${Math.round(tasteProfile.avgPrice)}</p>
+                <p className="text-xs text-neutral-600">per bottle</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sommelier Notes ───────────────────────────────────────────────── */}
+      {!loading && sommelierNotes.length > 0 && (
+        <div className="card space-y-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-3.5 h-3.5 text-wine-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Sommelier Notes</p>
+          </div>
+          <div className="space-y-3">
+            {sommelierNotes.map((note, i) => (
+              <SommelierNote key={i} note={note} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Drinking window section ───────────────────────────────────────── */}
       {!loading && wines.length > 0 && (
         <div className="space-y-3">
 
-          {/* Header + Refresh button */}
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Drinking Windows</p>
             <button
@@ -276,14 +360,12 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Refresh error */}
           {refreshError && <p className="text-xs text-red-400">{refreshError}</p>}
 
-          {/* Summary chips — tap to filter */}
           {estimatedCount > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 snap-x">
               {WINDOW_ORDER.filter((s) => windowCounts[s] > 0).map((s) => {
-                const style = WINDOW_STYLES[s]
+                const style  = WINDOW_STYLES[s]
                 const active = windowFilter === s
                 return (
                   <button
@@ -312,7 +394,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Prompt if nothing estimated yet */}
           {estimatedCount === 0 && (
             <p className="text-xs text-neutral-600">
               Tap "Estimate All" to analyse drinking windows for your entire cellar.
@@ -391,6 +472,8 @@ export default function Dashboard() {
   )
 }
 
+// ── Helper components ─────────────────────────────────────────────────────────
+
 function StatCard({ label, value, icon }) {
   return (
     <div className="card flex items-center gap-3">
@@ -400,6 +483,48 @@ function StatCard({ label, value, icon }) {
       <div className="min-w-0">
         <p className="text-xs text-neutral-500 uppercase tracking-wide">{label}</p>
         <p className="text-2xl font-bold text-neutral-100 leading-none mt-0.5">{value}</p>
+      </div>
+    </div>
+  )
+}
+
+function SommelierNote({ note }) {
+  const SEVERITY_STYLES = {
+    amber: { text: 'text-amber-300', icon: 'text-amber-400' },
+    blue:  { text: 'text-sky-300',   icon: 'text-sky-400' },
+    green: { text: 'text-green-300', icon: 'text-green-400' },
+  }
+  const s = SEVERITY_STYLES[note.severity] ?? SEVERITY_STYLES.amber
+
+  let icon
+  if (note.type === 'drink_now' || note.type === 'closing_window') {
+    icon = (
+      <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${s.icon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    )
+  } else if (note.type === 'low_stock') {
+    icon = (
+      <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${s.icon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    )
+  } else {
+    icon = (
+      <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${s.icon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    )
+  }
+
+  return (
+    <div className="flex gap-2.5 items-start">
+      {icon}
+      <div className="min-w-0">
+        <p className={`text-sm font-medium leading-snug ${s.text}`}>{note.title}</p>
+        {note.detail && (
+          <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">{note.detail}</p>
+        )}
       </div>
     </div>
   )

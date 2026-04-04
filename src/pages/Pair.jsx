@@ -7,6 +7,7 @@ import { getWishlist } from '../lib/wishlist'
 
 export default function Pair() {
   const [meal, setMeal] = useState('')
+  const [occasion, setOccasion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [recommendations, setRecommendations] = useState(null)
@@ -39,7 +40,7 @@ export default function Pair() {
       const res = await fetch('/api/pair-wine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meal: meal.trim(), wines, wishlist }),
+        body: JSON.stringify({ meal: meal.trim(), occasion: occasion || null, wines, wishlist }),
       })
 
       const data = await res.json()
@@ -90,6 +91,27 @@ export default function Pair() {
             className="input-field"
             disabled={loading}
           />
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-neutral-300">
+            What's the occasion? <span className="text-neutral-500 font-normal">(optional)</span>
+          </label>
+          <select
+            value={occasion}
+            onChange={(e) => setOccasion(e.target.value)}
+            className="input-field"
+            disabled={loading}
+          >
+            <option value="">No particular occasion</option>
+            <option value="weeknight dinner">Weeknight dinner</option>
+            <option value="dinner party">Dinner party</option>
+            <option value="celebration">Celebration</option>
+            <option value="casual drinks">Casual drinks</option>
+            <option value="date night">Date night</option>
+            <option value="barbecue">Barbecue</option>
+            <option value="picnic">Picnic</option>
+            <option value="gift">Gift</option>
+          </select>
         </div>
         <button
           type="submit"
