@@ -102,7 +102,10 @@ export default function Inventory() {
             wines: batch.map((w) => ({
               id:          w.id,
               name:        w.name,
-              vintage:     w.vintage ?? null,
+              producer:    w.producer  ?? null,
+              vintage:     w.vintage   ?? null,
+              region:      w.region    ?? null,
+              country:     w.country   ?? null,
               // Only tell the server which fields are null — it won't touch the rest
               null_fields: ['james_suckling', 'robert_parker', 'wine_spectator'].filter((f) => w[f] === null),
             })),

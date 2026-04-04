@@ -189,7 +189,10 @@ export default function AddWine() {
           body: JSON.stringify({
             wine_id:     saved.id,
             name:        saved.name,
-            vintage:     saved.vintage ?? null,
+            producer:    saved.producer    ?? null,
+            vintage:     saved.vintage     ?? null,
+            region:      saved.region      ?? null,
+            country:     saved.country     ?? null,
             null_fields: nullFields,
           }),
         })
@@ -218,7 +221,10 @@ export default function AddWine() {
           body: JSON.stringify({
             wine_id:     saved.id,
             name:        saved.name,
-            vintage:     saved.vintage ?? null,
+            producer:    saved.producer    ?? null,
+            vintage:     saved.vintage     ?? null,
+            region:      saved.region      ?? null,
+            country:     saved.country     ?? null,
             null_fields: nullFields,
           }),
         }).catch(() => {})

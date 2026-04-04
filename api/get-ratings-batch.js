@@ -37,7 +37,15 @@ export default async function handler(req, res) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const wineList = wines
-      .map((w) => `- id: ${w.id}  name: ${w.name}${w.vintage ? `  vintage: ${w.vintage}` : ''}`)
+      .map((w) => {
+        const parts = [`- id: ${w.id}`]
+        if (w.producer) parts.push(`producer: ${w.producer}`)
+        parts.push(`name: ${w.name}`)
+        if (w.region) parts.push(`region: ${w.region}`)
+        else if (w.country) parts.push(`country: ${w.country}`)
+        if (w.vintage) parts.push(`vintage: ${w.vintage}`)
+        return parts.join('  ')
+      })
       .join('\n')
 
     const response = await client.messages.create({

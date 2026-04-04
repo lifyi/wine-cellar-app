@@ -4,9 +4,20 @@ import { getSupabaseClient } from './_supabase.js'
 const ALLOWED_TABLES   = ['wines', 'wishlist']
 const RATING_FIELDS    = ['james_suckling', 'robert_parker', 'wine_spectator']
 
+// Build the most specific wine identity string possible for prompts / searches
+function buildWineLabel(name, producer, vintage, region, country) {
+  const parts = []
+  if (producer) parts.push(producer)
+  parts.push(name)
+  // Add region; fall back to country if no region
+  if (region) parts.push(region)
+  else if (country) parts.push(country)
+  if (vintage) parts.push(String(vintage))
+  return parts.join(' ')
+}
+
 // Step 1: Try Claude's training knowledge first (cheap, fast)
-async function getRatingsFromTraining(client, name, vintage) {
-  const wineLabel = vintage ? `${name} ${vintage}` : name
+async function getRatingsFromTraining(client, wineLabel) {
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -35,8 +46,7 @@ Use an integer for each critic whose score you are confident about for this spec
 }
 
 // Step 2: Web search fallback — only when training returns nothing
-async function getRatingsFromWeb(client, name, vintage) {
-  const wineLabel = vintage ? `${name} ${vintage}` : name
+async function getRatingsFromWeb(client, wineLabel) {
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -77,7 +87,8 @@ export default async function handler(req, res) {
   // wine_id    — if provided, save result directly to Supabase
   // table      — 'wines' (default) or 'wishlist'
   // null_fields — which fields to update (defaults to all three if omitted)
-  const { name, vintage, wine_id, table = 'wines', null_fields } = req.body ?? {}
+  // producer, region, country — optional; used to make the search more specific
+  const { name, producer, vintage, region, country, wine_id, table = 'wines', null_fields } = req.body ?? {}
 
   if (!name?.trim()) {
     return res.status(400).json({ error: 'Missing wine name' })
@@ -94,12 +105,20 @@ export default async function handler(req, res) {
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+    const wineLabel = buildWineLabel(
+      name.trim(),
+      producer?.trim() || null,
+      vintage ?? null,
+      region?.trim()  || null,
+      country?.trim() || null,
+    )
+
     // Step 1: Training knowledge (no extra cost)
-    let result = await getRatingsFromTraining(client, name.trim(), vintage ?? null)
+    let result = await getRatingsFromTraining(client, wineLabel)
 
     // Step 2: Web search only if training returned nothing at all
     if (!result) {
-      result = await getRatingsFromWeb(client, name.trim(), vintage ?? null)
+      result = await getRatingsFromWeb(client, wineLabel)
     }
 
     // Build payload — null means not found

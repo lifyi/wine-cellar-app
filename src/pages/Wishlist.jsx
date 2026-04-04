@@ -211,7 +211,10 @@ export default function Wishlist() {
           body: JSON.stringify({
             wine_id:     saved.id,
             name:        saved.name,
-            vintage:     saved.vintage ?? null,
+            producer:    saved.producer    ?? null,
+            vintage:     saved.vintage     ?? null,
+            region:      saved.region      ?? null,
+            country:     saved.country     ?? null,
             null_fields: nullFields,
             table:       'wishlist',
           }),
@@ -259,7 +262,10 @@ export default function Wishlist() {
             wines: batch.map((w) => ({
               id:          w.id,
               name:        w.name,
-              vintage:     w.vintage ?? null,
+              producer:    w.producer  ?? null,
+              vintage:     w.vintage   ?? null,
+              region:      w.region    ?? null,
+              country:     w.country   ?? null,
               null_fields: ['james_suckling', 'robert_parker', 'wine_spectator'].filter((f) => w[f] === null),
             })),
           }),
