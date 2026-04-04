@@ -152,6 +152,16 @@ export default function WineForm({
               className="input-field pl-9"
             />
           </div>
+          {form.name && (
+            <a
+              href={`https://www.google.com/search?q=${encodeURIComponent(`${form.name}${form.vintage ? ' ' + form.vintage : ''} wine price Singapore`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-wine-400 hover:text-wine-300 transition-colors duration-100"
+            >
+              Check prices →
+            </a>
+          )}
         </Field>
       </div>
 

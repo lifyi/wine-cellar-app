@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import WineForm, { EMPTY_FORM } from '../components/WineForm'
-import { addWine } from '../lib/wines'
+import { addWine, updateWine } from '../lib/wines'
 import { estimateInBackground } from '../lib/drinkingWindow'
 
 // Resize image to max 1280px wide/tall and return a base64 JPEG string
@@ -42,6 +42,9 @@ export default function AddWine() {
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState(null)
   const [scanned, setScanned] = useState(false)
+  const [scanDrinkingWindow, setScanDrinkingWindow] = useState(null)
+  const [scanInferred, setScanInferred] = useState([])
+  const [priceRange, setPriceRange] = useState(null)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
 
@@ -58,6 +61,9 @@ export default function AddWine() {
 
     setScanError(null)
     setScanned(false)
+    setScanDrinkingWindow(null)
+    setScanInferred([])
+    setPriceRange(null)
     setScanning(true)
 
     try {
@@ -83,7 +89,24 @@ export default function AddWine() {
         country:       data.country       != null ? String(data.country)       : f.country,
         grape_variety: data.grape_variety != null ? String(data.grape_variety) : f.grape_variety,
         colour:        data.colour        != null ? data.colour                : f.colour,
+        notes:         data.notes         != null ? String(data.notes)         : f.notes,
+        cost:          data.cost          != null ? String(data.cost)          : f.cost,
       }))
+
+      // Store drinking window + metadata from scan
+      if (data.drinking_window_status) {
+        setScanDrinkingWindow({
+          status:     data.drinking_window_status,
+          note:       data.drinking_window_note       ?? null,
+          start_year: data.drinking_window_start      ?? null,
+          end_year:   data.drinking_window_end        ?? null,
+        })
+      }
+      setScanInferred(Array.isArray(data.inferred) ? data.inferred : [])
+      if (data.price_range_sgd?.min != null && data.price_range_sgd?.max != null) {
+        setPriceRange(data.price_range_sgd)
+      }
+
       setScanned(true)
     } catch (err) {
       setScanError(err.message)
@@ -109,8 +132,17 @@ export default function AddWine() {
         cost: form.cost !== '' ? Number(form.cost) : null,
         notes: form.notes.trim() || null,
       })
-      // Kick off drinking window estimation in the background — doesn't block UX
-      estimateInBackground(saved)
+      // Use drinking window from scan if we already have one; otherwise estimate in background
+      if (scanDrinkingWindow?.status) {
+        updateWine(saved.id, {
+          drinking_window_status: scanDrinkingWindow.status,
+          drinking_window_note:   scanDrinkingWindow.note       ?? null,
+          drinking_window_start:  scanDrinkingWindow.start_year ?? null,
+          drinking_window_end:    scanDrinkingWindow.end_year   ?? null,
+        }).catch(() => {}) // fire-and-forget
+      } else {
+        estimateInBackground(saved)
+      }
       setSuccess(true)
       setForm(EMPTY_FORM)
       setTimeout(() => {
@@ -143,11 +175,24 @@ export default function AddWine() {
 
         {/* Success message */}
         {scanned && !scanError && (
-          <div className="flex items-center gap-1.5 text-xs text-green-400">
-            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            Scanned — check the fields below and correct anything
+          <div className="w-full space-y-1.5 text-left">
+            <div className="flex items-center gap-1.5 text-xs text-green-400">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Scanned — check the fields below and correct anything
+            </div>
+            {scanInferred.length > 0 && (
+              <p className="text-xs text-neutral-500">
+                <span className="text-neutral-400">Inferred:</span>{' '}
+                {scanInferred.join(', ')}
+              </p>
+            )}
+            {priceRange && (
+              <p className="text-xs text-neutral-500">
+                Est. retail S${priceRange.min}–S${priceRange.max} · cost pre-filled with midpoint
+              </p>
+            )}
           </div>
         )}
 
