@@ -76,35 +76,57 @@ export default function Inventory() {
     }
   }
 
-  // Bulk refresh — only processes wines with no ratings
+  // Bulk refresh — only processes wines with no ratings, in batches of 20
+  const RATINGS_BATCH_SIZE = 20
+  const RATINGS_DELAY_MS   = 2000
+
   async function handleRefreshRatings() {
     if (missingRatings.length === 0 || refreshing) return
     setRefreshing(true)
     setRefreshDone(false)
     setRefreshProgress({ done: 0, total: missingRatings.length })
 
-    for (const wine of missingRatings) {
+    let done = 0
+    for (let i = 0; i < missingRatings.length; i += RATINGS_BATCH_SIZE) {
+      // 2-second delay between batches (not before the first)
+      if (i > 0) await new Promise((resolve) => setTimeout(resolve, RATINGS_DELAY_MS))
+
+      const batch = missingRatings.slice(i, i + RATINGS_BATCH_SIZE)
+
       try {
-        const res = await fetch('/api/get-ratings', {
+        const res = await fetch('/api/get-ratings-batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: wine.name, vintage: wine.vintage ?? null }),
+          body: JSON.stringify({
+            wines: batch.map((w) => ({ id: w.id, name: w.name, vintage: w.vintage ?? null })),
+          }),
         })
         const data = await res.json()
-        // Save each score, or -1 for critics not found (so this wine is skipped next refresh)
-        const update = {
-          james_suckling: data.james_suckling ?? -1,
-          robert_parker:  data.robert_parker  ?? -1,
-          wine_spectator: data.wine_spectator ?? -1,
+        const results = data.results ?? []
+
+        // Save each result and update local state wine by wine
+        for (const result of results) {
+          const update = {
+            james_suckling: result.james_suckling ?? -1,
+            robert_parker:  result.robert_parker  ?? -1,
+            wine_spectator: result.wine_spectator ?? -1,
+          }
+          try {
+            await updateWine(result.id, update)
+          } catch {
+            // skip save failures; continue
+          }
+          setWines((prev) =>
+            prev.map((w) => (w.id === result.id ? { ...w, ...update } : w))
+          )
+          done += 1
+          setRefreshProgress({ done, total: missingRatings.length })
         }
-        await updateWine(wine.id, update)
-        setWines((prev) =>
-          prev.map((w) => (w.id === wine.id ? { ...w, ...update } : w))
-        )
       } catch {
-        // skip failed wines, continue with the rest
+        // skip entire batch on network error; advance counter
+        done += batch.length
+        setRefreshProgress({ done, total: missingRatings.length })
       }
-      setRefreshProgress((prev) => ({ ...prev, done: prev.done + 1 }))
     }
 
     setRefreshing(false)
@@ -167,7 +189,9 @@ export default function Inventory() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              Fetching ratings… {refreshProgress ? `(${refreshProgress.done}/${refreshProgress.total})` : ''}
+              {refreshProgress && refreshProgress.done < refreshProgress.total
+                ? `Processing wine ${refreshProgress.done + 1} of ${refreshProgress.total}…`
+                : 'Fetching ratings…'}
             </>
           ) : (
             <>

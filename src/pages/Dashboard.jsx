@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [windowFilter, setWindowFilter] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
   const [refreshError, setRefreshError] = useState(null)
   const [drunkCount, setDrunkCount] = useState(0)
 
@@ -94,8 +95,21 @@ export default function Dashboard() {
     if (!wines.length) return
     setRefreshing(true)
     setRefreshError(null)
+    setRefreshProgress({ done: 0, total: wines.length })
     try {
-      const results = await estimateAndSaveWindows(wines)
+      const results = await estimateAndSaveWindows(wines, (done, total) => {
+        setRefreshProgress({ done, total })
+        // Update each wine's window as results arrive
+        setWines((prev) =>
+          prev.map((wine) => {
+            const r = results.find((x) => x.wine_id === wine.id)
+            return r
+              ? { ...wine, drinking_window_status: r.status, drinking_window_note: r.note, drinking_window_start: r.start_year ?? null, drinking_window_end: r.end_year ?? null }
+              : wine
+          })
+        )
+      })
+      // Final sync once all done
       setWines((prev) =>
         prev.map((wine) => {
           const r = results.find((x) => x.wine_id === wine.id)
@@ -108,6 +122,7 @@ export default function Dashboard() {
       setRefreshError(err.message)
     } finally {
       setRefreshing(false)
+      setRefreshProgress(null)
     }
   }
 
@@ -261,7 +276,11 @@ export default function Dashboard() {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              {refreshing ? 'Refreshing…' : estimatedCount === 0 ? 'Estimate All' : 'Refresh All'}
+              {refreshing
+                ? refreshProgress
+                  ? `Processing wine ${refreshProgress.done + 1} of ${refreshProgress.total}…`
+                  : 'Refreshing…'
+                : estimatedCount === 0 ? 'Estimate All' : 'Refresh All'}
             </button>
           </div>
 

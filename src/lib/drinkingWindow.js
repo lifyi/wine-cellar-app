@@ -1,32 +1,45 @@
 import { updateWine } from './wines'
 
-// Call the serverless function for a list of wines, save results to Supabase,
-// and return the array of { wine_id, status, note } results.
-export async function estimateAndSaveWindows(wines) {
-  const res = await fetch('/api/drinking-window', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wines }),
-  })
+const BATCH_SIZE = 15
+const DELAY_MS   = 2000
 
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Failed to estimate drinking windows.')
+// Call the serverless function for a list of wines in chunks of BATCH_SIZE,
+// save results to Supabase, and return the accumulated results.
+// onProgress(done, total) is called after each wine's results are saved.
+export async function estimateAndSaveWindows(wines, onProgress) {
+  const allResults = []
 
-  const results = data.wines ?? []
+  for (let i = 0; i < wines.length; i += BATCH_SIZE) {
+    // 2-second delay between batches (not before the first)
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, DELAY_MS))
 
-  // Save each result back to Supabase in parallel
-  await Promise.all(
-    results.map(({ wine_id, status, note, start_year, end_year }) =>
-      updateWine(wine_id, {
+    const batch = wines.slice(i, i + BATCH_SIZE)
+
+    const res = await fetch('/api/drinking-window', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wines: batch }),
+    })
+
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to estimate drinking windows.')
+
+    const results = data.wines ?? []
+
+    // Save each result back to Supabase sequentially so we can fire progress updates
+    for (const { wine_id, status, note, start_year, end_year } of results) {
+      await updateWine(wine_id, {
         drinking_window_status: status,
         drinking_window_note:   note,
         drinking_window_start:  start_year ?? null,
         drinking_window_end:    end_year   ?? null,
       })
-    )
-  )
+      allResults.push({ wine_id, status, note, start_year, end_year })
+      onProgress?.(allResults.length, wines.length)
+    }
+  }
 
-  return results
+  return allResults
 }
 
 // Fire-and-forget: estimate a single wine in the background after adding it.
