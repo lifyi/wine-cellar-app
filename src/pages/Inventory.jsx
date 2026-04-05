@@ -4,6 +4,7 @@ import { COLOUR_STYLES } from '../components/ColourBadge'
 import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
 import { getWines, drinkOne, deleteWine } from '../lib/wines'
+import { addToWishlistIfNew } from '../lib/wishlist'
 
 const COLOURS = ['all', 'red', 'white', 'rosé', 'sparkling', 'dessert']
 
@@ -19,6 +20,7 @@ export default function Inventory() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
   const [refreshDone, setRefreshDone] = useState(false)
+  const [wishlistStatuses, setWishlistStatuses] = useState({}) // id → 'pending'|'added'|'duplicate'
 
   useEffect(() => {
     getWines()
@@ -73,6 +75,36 @@ export default function Inventory() {
       alert('Error: ' + err.message)
     } finally {
       setPendingDelete(null)
+    }
+  }
+
+  async function handleWishlist(wine) {
+    const id = wine.id
+    setWishlistStatuses((prev) => ({ ...prev, [id]: 'pending' }))
+    try {
+      const result = await addToWishlistIfNew({
+        name:          wine.name,
+        producer:      wine.producer      ?? null,
+        vintage:       wine.vintage       ?? null,
+        region:        wine.region        ?? null,
+        country:       wine.country       ?? null,
+        grape_variety: wine.grape_variety ?? null,
+        colour:        wine.colour        ?? 'red',
+        james_suckling: wine.james_suckling ?? null,
+        robert_parker:  wine.robert_parker  ?? null,
+        wine_spectator: wine.wine_spectator ?? null,
+        cost:   wine.cost ?? null,
+        source: 'Currently in cellar — want more',
+      })
+      const status = result.duplicate ? 'duplicate' : 'added'
+      setWishlistStatuses((prev) => ({ ...prev, [id]: status }))
+      setTimeout(() => setWishlistStatuses((prev) => {
+        const next = { ...prev }; delete next[id]; return next
+      }), 3000)
+    } catch {
+      setWishlistStatuses((prev) => {
+        const next = { ...prev }; delete next[id]; return next
+      })
     }
   }
 
@@ -283,6 +315,8 @@ export default function Inventory() {
               deletePending={pendingDelete === wine.id}
               onDrink={() => setModalWine(wine)}
               onDelete={() => handleDelete(wine.id)}
+              wishlistState={wishlistStatuses[wine.id] ?? null}
+              onWishlist={() => handleWishlist(wine)}
             />
           ))}
         </div>
@@ -300,7 +334,7 @@ export default function Inventory() {
   )
 }
 
-function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) {
+function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete, wishlistState, onWishlist }) {
   const style = COLOUR_STYLES[wine.colour] ?? COLOUR_STYLES.red
 
   const ratingParts = []
@@ -358,6 +392,14 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
         <p className="text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
       )}
 
+      {/* Wishlist feedback */}
+      {wishlistState === 'added' && (
+        <p className="text-xs text-wine-400">Added to your wishlist!</p>
+      )}
+      {wishlistState === 'duplicate' && (
+        <p className="text-xs text-neutral-500">Already on your wishlist</p>
+      )}
+
       {/* Footer: quantity left, actions right */}
       <div className="flex items-center justify-between pt-1 border-t border-neutral-800">
 
@@ -374,6 +416,9 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete }) 
 
         {/* Actions */}
         <div className="flex items-center gap-1">
+
+          {/* Add to wishlist */}
+          <WishlistButton state={wishlistState} onClick={onWishlist} />
 
           {/* Edit */}
           <Link
@@ -436,5 +481,48 @@ function Detail({ label, value }) {
       <p className="text-neutral-500 text-xs uppercase tracking-wide">{label}</p>
       <p className="text-neutral-200 truncate">{value}</p>
     </div>
+  )
+}
+
+// Heart button — 4 visual states: idle, pending, added, duplicate
+function WishlistButton({ state, onClick }) {
+  if (state === 'pending') {
+    return (
+      <button disabled className="p-2 text-neutral-500 opacity-50 rounded-lg">
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+      </button>
+    )
+  }
+  if (state === 'added') {
+    return (
+      <button disabled title="Added to wishlist" className="p-2 text-wine-400 rounded-lg">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        </svg>
+      </button>
+    )
+  }
+  if (state === 'duplicate') {
+    return (
+      <button disabled title="Already on your wishlist" className="p-2 text-neutral-600 rounded-lg">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        </svg>
+      </button>
+    )
+  }
+  return (
+    <button
+      onClick={onClick}
+      title="Add to wishlist"
+      className="p-2 text-neutral-500 hover:text-wine-400 transition-colors duration-100 rounded-lg hover:bg-neutral-800"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    </button>
   )
 }

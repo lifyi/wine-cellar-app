@@ -10,6 +10,28 @@ export async function getWishlist() {
   return data
 }
 
+// ── Add an item only if no matching name+vintage already exists ───────────
+// Returns { duplicate: true } or { duplicate: false, item: <inserted row> }
+export async function addToWishlistIfNew(item) {
+  let query = supabase
+    .from('wishlist')
+    .select('id')
+    .ilike('name', item.name.trim())
+  if (item.vintage != null) {
+    query = query.eq('vintage', item.vintage)
+  }
+  const { data: existing } = await query.limit(1)
+  if (existing?.length > 0) return { duplicate: true }
+
+  const { data, error } = await supabase
+    .from('wishlist')
+    .insert([item])
+    .select()
+    .single()
+  if (error) throw error
+  return { duplicate: false, item: data }
+}
+
 // ── Add an item to the wishlist ───────────────────────────────────────────
 export async function addToWishlist(item) {
   const { data, error } = await supabase
