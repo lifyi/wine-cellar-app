@@ -62,7 +62,7 @@ export default function Pair() {
     setModalWine(null)
     setPendingCoravin(wine.id)
     try {
-      const updated = await coravinWine(wine.id)
+      const updated = await coravinWine(wine)
       setWineMap((prev) => ({ ...prev, [wine.id]: updated }))
     } catch (err) {
       alert('Error: ' + err.message)
@@ -71,11 +71,11 @@ export default function Pair() {
     }
   }
 
-  async function handleDrink(wine, note) {
+  async function handleDrink(wine, note, bottleType) {
     setModalWine(null)
     setPendingDrink(wine.id)
     try {
-      const updated = await drinkOne(wine, note)
+      const updated = await drinkOne(wine, note, bottleType)
       setWineMap((prev) => ({
         ...prev,
         [wine.id]: updated ?? { ...wine, quantity: 0 },
@@ -293,7 +293,7 @@ export default function Pair() {
       {modalWine && (
         <DrinkConfirmModal
           wine={modalWine}
-          onConfirm={(note) => handleDrink(modalWine, note)}
+          onConfirm={(note, bottleType) => handleDrink(modalWine, note, bottleType)}
           onCoravin={() => handleCoravin(modalWine)}
           onCancel={() => setModalWine(null)}
         />

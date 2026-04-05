@@ -45,7 +45,10 @@ export async function updateWine(id, wine) {
 }
 
 // ── Reduce quantity by 1 and log to drinking history ──────────────────────
-export async function drinkOne(wine, note = null) {
+// bottleType: 'coravined' | 'untouched'
+// - 'coravined': also reduces coravin_count by 1
+// - 'untouched': clamps coravin_count to new quantity if needed
+export async function drinkOne(wine, note = null, bottleType = 'untouched') {
   // Log the drink first (snapshot wine details so history survives deletions)
   const { error: histErr } = await supabase.from('drinking_history').insert([{
     wine_id:      wine.id,
@@ -62,15 +65,24 @@ export async function drinkOne(wine, note = null) {
   }])
   if (histErr) throw histErr
 
-  // Then reduce quantity or remove the row
-  if (wine.quantity <= 1) {
+  const newQty = wine.quantity - 1
+
+  // Last bottle — remove the row entirely
+  if (newQty <= 0) {
     const { error } = await supabase.from('wines').delete().eq('id', wine.id)
     if (error) throw error
     return null
   }
+
+  // Build update: quantity always decreases; coravin_count adjusted by bottle type
+  const coravinCount = wine.coravin_count ?? 0
+  const newCoravinCount = bottleType === 'coravined'
+    ? Math.max(0, coravinCount - 1)          // remove a Coravin'd bottle
+    : Math.min(coravinCount, newQty)          // clamp if untouched bottle removed
+
   const { data, error } = await supabase
     .from('wines')
-    .update({ quantity: wine.quantity - 1 })
+    .update({ quantity: newQty, coravin_count: newCoravinCount })
     .eq('id', wine.id)
     .select()
     .single()
@@ -112,13 +124,14 @@ export async function getDrinkingHistoryCount() {
   return count ?? 0
 }
 
-// ── Record a Coravin pour — updates last_coravin_date, no qty change ──────
-export async function coravinWine(id) {
+// ── Record a Coravin pour — increments coravin_count (capped at qty) ──────
+export async function coravinWine(wine) {
   const today = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
+  const newCount = Math.min((wine.coravin_count ?? 0) + 1, wine.quantity)
   const { data, error } = await supabase
     .from('wines')
-    .update({ last_coravin_date: today })
-    .eq('id', id)
+    .update({ coravin_count: newCount, last_coravin_date: today })
+    .eq('id', wine.id)
     .select()
     .single()
   if (error) throw error
