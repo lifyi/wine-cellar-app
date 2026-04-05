@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import WishlistCard from '../components/WishlistCard'
-import { getWishlist, addToWishlist, removeFromWishlist, moveToWines } from '../lib/wishlist'
+import { getWishlist, addToWishlist, updateWishlistItem, removeFromWishlist, moveToWines } from '../lib/wishlist'
 import { getWines, getDrinkingHistory } from '../lib/wines'
 import { estimateInBackground } from '../lib/drinkingWindow'
 import { buildTasteProfile } from '../lib/tasteProfile'
@@ -66,12 +66,14 @@ export default function Wishlist() {
   const [suggestions, setSuggestions]   = useState(null)
   const [suggestError, setSuggestError] = useState(null)
 
-  // Add-form state
-  const [showForm, setShowForm]   = useState(false)
-  const [form, setForm]           = useState(EMPTY_FORM)
-  const [saving, setSaving]       = useState(false)
-  const [saveError, setSaveError] = useState(null)
+  // Add / edit form state
+  const [showForm, setShowForm]       = useState(false)
+  const [editingItem, setEditingItem] = useState(null)   // non-null = editing mode
+  const [form, setForm]               = useState(EMPTY_FORM)
+  const [saving, setSaving]           = useState(false)
+  const [saveError, setSaveError]     = useState(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
 
   // Scan state
   const [scanning, setScanning]     = useState(false)
@@ -169,12 +171,49 @@ export default function Wishlist() {
     finally { setParsing(false) }
   }
 
+  // ── Open edit form pre-filled with existing item data ────────────────────
+  function handleEdit(item) {
+    setEditingItem(item)
+    setForm({
+      name:           item.name          ?? '',
+      producer:       item.producer      ?? '',
+      vintage:        item.vintage       ? String(item.vintage) : '',
+      region:         item.region        ?? '',
+      country:        item.country       ?? '',
+      grape_variety:  item.grape_variety ?? '',
+      colour:         item.colour        ?? 'red',
+      cost:           item.cost != null  ? String(item.cost) : '',
+      james_suckling: item.james_suckling > 0 ? String(item.james_suckling) : '',
+      robert_parker:  item.robert_parker  > 0 ? String(item.robert_parker)  : '',
+      wine_spectator: item.wine_spectator > 0 ? String(item.wine_spectator) : '',
+      notes:          item.notes  ?? '',
+      source:         item.source ?? '',
+    })
+    setScanDrinkingWindow(item.drinking_window_status ? {
+      status:     item.drinking_window_status,
+      note:       item.drinking_window_note  ?? null,
+      start_year: item.drinking_window_start ?? null,
+      end_year:   item.drinking_window_end   ?? null,
+    } : null)
+    setScanned(false); setScanInferred([]); setPriceRange(null)
+    setScanError(null); setParseError(null); setSaveError(null)
+    setShowForm(true)
+  }
+
+  function handleCancelEdit() {
+    setEditingItem(null)
+    setForm(EMPTY_FORM)
+    setScanned(false); setScanInferred([]); setPriceRange(null); setScanDrinkingWindow(null)
+    setSaveError(null)
+    setShowForm(false)
+  }
+
   // ── Save to wishlist ──────────────────────────────────────────────────────
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true); setSaveError(null)
     try {
-      const saved = await addToWishlist({
+      const payload = {
         name:          form.name.trim(),
         producer:      form.producer.trim()      || null,
         vintage:       form.vintage ? Number(form.vintage) : null,
@@ -192,42 +231,54 @@ export default function Wishlist() {
         drinking_window_note:   scanDrinkingWindow?.note      ?? null,
         drinking_window_start:  scanDrinkingWindow?.start_year ?? null,
         drinking_window_end:    scanDrinkingWindow?.end_year   ?? null,
-      })
-      setItems((prev) => [saved, ...prev])
+      }
+
+      if (editingItem) {
+        // ── Update existing item ───────────────────────────────────────────
+        const saved = await updateWishlistItem(editingItem.id, payload)
+        setItems((prev) => prev.map((w) => (w.id === saved.id ? saved : w)))
+        setEditingItem(null)
+        setSaveSuccessMsg('Wishlist item updated!')
+      } else {
+        // ── Insert new item ────────────────────────────────────────────────
+        const saved = await addToWishlist(payload)
+        setItems((prev) => [saved, ...prev])
+        setSaveSuccessMsg('Added to your wishlist!')
+
+        // Fire background ratings fetch for any null fields — server writes to
+        // Supabase directly so result persists even if the user navigates away.
+        const nullFields = ['james_suckling', 'robert_parker', 'wine_spectator']
+          .filter((f) => saved[f] === null)
+        if (nullFields.length > 0) {
+          fetch('/api/get-ratings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              wine_id:     saved.id,
+              name:        saved.name,
+              producer:    saved.producer ?? null,
+              vintage:     saved.vintage  ?? null,
+              region:      saved.region   ?? null,
+              country:     saved.country  ?? null,
+              null_fields: nullFields,
+              table:       'wishlist',
+            }),
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              const update = {}
+              for (const f of nullFields) { update[f] = data[f] ?? -1 }
+              setItems((prev) => prev.map((w) => (w.id === saved.id ? { ...w, ...update } : w)))
+            })
+            .catch(() => {})
+        }
+      }
+
       setForm(EMPTY_FORM)
       setScanned(false); setScanInferred([]); setPriceRange(null); setScanDrinkingWindow(null)
       setSaveSuccess(true)
       setShowForm(false)
       setTimeout(() => setSaveSuccess(false), 3000)
-
-      // Fire background ratings fetch for any null fields — server writes to Supabase
-      // directly so the result is persisted even if the user navigates away.
-      const nullFields = ['james_suckling', 'robert_parker', 'wine_spectator']
-        .filter((f) => saved[f] === null)
-      if (nullFields.length > 0) {
-        fetch('/api/get-ratings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            wine_id:     saved.id,
-            name:        saved.name,
-            producer:    saved.producer    ?? null,
-            vintage:     saved.vintage     ?? null,
-            region:      saved.region      ?? null,
-            country:     saved.country     ?? null,
-            null_fields: nullFields,
-            table:       'wishlist',
-          }),
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            // Update local state with whatever the lookup returned
-            const update = {}
-            for (const f of nullFields) { update[f] = data[f] ?? -1 }
-            setItems((prev) => prev.map((w) => (w.id === saved.id ? { ...w, ...update } : w)))
-          })
-          .catch(() => {})
-      }
     } catch (err) { setSaveError(err.message) }
     finally { setSaving(false) }
   }
@@ -354,26 +405,46 @@ export default function Wishlist() {
       {/* ── Add section ─────────────────────────────────────────────────── */}
       <div className="card space-y-0 overflow-hidden">
 
-        {/* Header toggle */}
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="w-full flex items-center justify-between py-1 gap-3"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-wine-950 flex items-center justify-center flex-shrink-0">
-              <svg className="w-4 h-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
+        {/* Header — toggle when adding, cancel button when editing */}
+        {editingItem ? (
+          <div className="w-full flex items-center justify-between py-1 gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-neutral-200 truncate">Editing: {editingItem.name}</span>
             </div>
-            <span className="text-sm font-medium text-neutral-200">Add a wine to your wishlist</span>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="flex-shrink-0 text-xs text-neutral-500 hover:text-neutral-300 transition-colors duration-100 px-2 py-1 rounded hover:bg-neutral-800"
+            >
+              Cancel
+            </button>
           </div>
-          <svg
-            className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${showForm ? 'rotate-180' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        ) : (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="w-full flex items-center justify-between py-1 gap-3"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-wine-950 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-neutral-200">Add a wine to your wishlist</span>
+            </div>
+            <svg
+              className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${showForm ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        )}
 
         {/* Expanded add form */}
         {showForm && (
@@ -572,7 +643,7 @@ export default function Wishlist() {
               )}
 
               <button type="submit" disabled={saving} className="btn-primary w-full">
-                {saving ? 'Saving…' : 'Add to Wishlist'}
+                {saving ? 'Saving…' : editingItem ? 'Save Changes' : 'Add to Wishlist'}
               </button>
             </form>
           </div>
@@ -585,7 +656,7 @@ export default function Wishlist() {
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          Added to your wishlist!
+          {saveSuccessMsg}
         </div>
       )}
 
@@ -766,6 +837,7 @@ export default function Wishlist() {
             <WishlistCard
               key={item.id}
               item={item}
+              onEdit={handleEdit}
               onAddToCellar={handleAddToCellar}
               onRemove={handleRemove}
               addingId={addingId}

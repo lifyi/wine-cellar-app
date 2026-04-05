@@ -21,6 +21,18 @@ export async function addToWishlist(item) {
   return data
 }
 
+// ── Update an existing wishlist item ─────────────────────────────────────
+export async function updateWishlistItem(id, updates) {
+  const { data, error } = await supabase
+    .from('wishlist')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 // ── Remove an item from the wishlist ─────────────────────────────────────
 export async function removeFromWishlist(id) {
   const { error } = await supabase.from('wishlist').delete().eq('id', id)
