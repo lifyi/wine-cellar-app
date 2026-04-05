@@ -29,6 +29,8 @@ export default function EditWine() {
           robert_parker:  wine.robert_parker  != null && wine.robert_parker  > 0 ? String(wine.robert_parker)  : '',
           wine_spectator: wine.wine_spectator != null && wine.wine_spectator > 0 ? String(wine.wine_spectator) : '',
           notes:          wine.notes ?? '',
+          coravin_count:    wine.coravin_count ?? 0,
+          last_coravin_date: wine.last_coravin_date ?? '',
         })
       })
       .catch((err) => setError(err.message))
@@ -37,7 +39,14 @@ export default function EditWine() {
 
   function handleChange(e) {
     const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: value }))
+    setForm((f) => {
+      const update = { ...f, [name]: value }
+      // Auto-clear date when count is zeroed
+      if (name === 'coravin_count' && (value === '0' || value === '')) {
+        update.last_coravin_date = ''
+      }
+      return update
+    })
   }
 
   async function handleSubmit(e) {
@@ -59,6 +68,8 @@ export default function EditWine() {
         robert_parker:  form.robert_parker  !== '' ? Number(form.robert_parker)  : null,
         wine_spectator: form.wine_spectator !== '' ? Number(form.wine_spectator) : null,
         notes:          form.notes.trim() || null,
+        coravin_count:    Number(form.coravin_count) || 0,
+        last_coravin_date: form.last_coravin_date || null,
       })
       setSuccess(true)
       setTimeout(() => navigate('/inventory'), 1200)
@@ -97,6 +108,7 @@ export default function EditWine() {
       error={error}
       success={success}
       successMessage="Changes saved! Returning to inventory…"
+      showCoravin
     />
   )
 }
