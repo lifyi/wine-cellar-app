@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { COLOUR_STYLES } from '../components/ColourBadge'
 import DrinkingWindowBadge from '../components/DrinkingWindowBadge'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
-import { getWines, drinkOne, deleteWine } from '../lib/wines'
+import { getWines, drinkOne, deleteWine, coravinWine } from '../lib/wines'
 import { addToWishlistIfNew } from '../lib/wishlist'
 
 const COLOURS = ['all', 'red', 'white', 'rosé', 'sparkling', 'dessert']
@@ -16,6 +16,7 @@ export default function Inventory() {
   const [colourFilter, setColourFilter] = useState('all')
   const [pendingDrink, setPendingDrink] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [pendingCoravin, setPendingCoravin] = useState(null)
   const [modalWine, setModalWine] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState(null) // { done, total }
@@ -62,6 +63,19 @@ export default function Inventory() {
       alert('Error: ' + err.message)
     } finally {
       setPendingDrink(null)
+    }
+  }
+
+  async function handleCoravin(wine) {
+    setModalWine(null)
+    setPendingCoravin(wine.id)
+    try {
+      const updated = await coravinWine(wine.id)
+      setWines((prev) => prev.map((w) => (w.id === wine.id ? updated : w)))
+    } catch (err) {
+      alert('Error: ' + err.message)
+    } finally {
+      setPendingCoravin(null)
     }
   }
 
@@ -313,6 +327,7 @@ export default function Inventory() {
               wine={wine}
               drinkPending={pendingDrink === wine.id}
               deletePending={pendingDelete === wine.id}
+              coravinPending={pendingCoravin === wine.id}
               onDrink={() => setModalWine(wine)}
               onDelete={() => handleDelete(wine.id)}
               wishlistState={wishlistStatuses[wine.id] ?? null}
@@ -327,6 +342,7 @@ export default function Inventory() {
         <DrinkConfirmModal
           wine={modalWine}
           onConfirm={(note) => handleDrinkOne(modalWine, note)}
+          onCoravin={() => handleCoravin(modalWine)}
           onCancel={() => setModalWine(null)}
         />
       )}
@@ -334,7 +350,13 @@ export default function Inventory() {
   )
 }
 
-function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete, wishlistState, onWishlist }) {
+function formatCoravinDate(dateStr) {
+  if (!dateStr) return null
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function InventoryRow({ wine, drinkPending, deletePending, coravinPending, onDrink, onDelete, wishlistState, onWishlist }) {
   const style = COLOUR_STYLES[wine.colour] ?? COLOUR_STYLES.red
 
   const ratingParts = []
@@ -390,6 +412,23 @@ function InventoryRow({ wine, drinkPending, deletePending, onDrink, onDelete, wi
       {/* Notes — full text, no truncation */}
       {wine.notes && (
         <p className="text-xs text-neutral-400 leading-relaxed whitespace-pre-wrap">{wine.notes}</p>
+      )}
+
+      {/* Coravin indicator */}
+      {(wine.last_coravin_date || coravinPending) && (
+        <div className="flex items-center gap-1.5 text-xs text-purple-400">
+          {coravinPending ? (
+            <svg className="w-3.5 h-3.5 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+            </svg>
+          )}
+          {coravinPending ? 'Saving Coravin pour…' : `Coravin'd: ${formatCoravinDate(wine.last_coravin_date)}`}
+        </div>
       )}
 
       {/* Wishlist feedback */}

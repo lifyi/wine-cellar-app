@@ -112,6 +112,19 @@ export async function getDrinkingHistoryCount() {
   return count ?? 0
 }
 
+// ── Record a Coravin pour — updates last_coravin_date, no qty change ──────
+export async function coravinWine(id) {
+  const today = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
+  const { data, error } = await supabase
+    .from('wines')
+    .update({ last_coravin_date: today })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 // ── Find an existing wine by name (case-insensitive) + vintage ────────────
 export async function findDuplicateWine(name, vintage) {
   let query = supabase.from('wines').select('*').ilike('name', name.trim())

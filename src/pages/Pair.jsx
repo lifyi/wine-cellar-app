@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import WineCard from '../components/WineCard'
 import DrinkConfirmModal from '../components/DrinkConfirmModal'
-import { getWines, drinkOne } from '../lib/wines'
+import { getWines, drinkOne, coravinWine } from '../lib/wines'
 import { getWishlist } from '../lib/wishlist'
 
 export default function Pair() {
@@ -15,6 +15,7 @@ export default function Pair() {
   const [wishlistSuggestions, setWishlistSuggestions] = useState(null)
   const [wineMap, setWineMap] = useState({})
   const [pendingDrink, setPendingDrink] = useState(null)
+  const [pendingCoravin, setPendingCoravin] = useState(null)
   const [drankIds, setDrankIds] = useState(new Set())
   const [modalWine, setModalWine] = useState(null)
 
@@ -54,6 +55,19 @@ export default function Pair() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleCoravin(wine) {
+    setModalWine(null)
+    setPendingCoravin(wine.id)
+    try {
+      const updated = await coravinWine(wine.id)
+      setWineMap((prev) => ({ ...prev, [wine.id]: updated }))
+    } catch (err) {
+      alert('Error: ' + err.message)
+    } finally {
+      setPendingCoravin(null)
     }
   }
 
@@ -280,6 +294,7 @@ export default function Pair() {
         <DrinkConfirmModal
           wine={modalWine}
           onConfirm={(note) => handleDrink(modalWine, note)}
+          onCoravin={() => handleCoravin(modalWine)}
           onCancel={() => setModalWine(null)}
         />
       )}
